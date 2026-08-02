@@ -11,6 +11,13 @@ dist/
 catalog.json
 payload/
 release-evidence/
+installer/src/Installer.Win/Payload/
+
+# Build caches.
+bin/
+obj/
+__pycache__/
+*.pyc
 
 # Local tooling.
 .idea/

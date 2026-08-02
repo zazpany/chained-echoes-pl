@@ -12,8 +12,8 @@ trzeba pobierać kodu repozytorium.
 
 ## Status
 
-Pierwsze wydanie Windows jest publikowane jako oznaczony **pre-release** do
-smoke testu przez odbiorcę. Pobieraj wyłącznie asset ZIP z zakładki Releases,
+Pierwsze wydania Windows i Kubuntu są publikowane jako oznaczony **pre-release**
+do smoke testu przez odbiorcę. Pobieraj wyłącznie właściwy asset ZIP z zakładki Releases,
 sprawdź dołączony SHA-256 i zgłoś wynik według
 [checklisty smoke testu](docs/SMOKE-TEST.md).
 
@@ -26,7 +26,7 @@ Może obejmować:
 - wymagany katalog Addressables;
 - zatwierdzone dialogi;
 - UI, menu, przedmioty i umiejętności zapisane w BGDatabase;
-- instalator Windows z backupem, weryfikacją i odinstalowaniem.
+- instalator Windows/Kubuntu z backupem, weryfikacją i odinstalowaniem.
 
 Dokładny zakres i obsługiwany build Steam są zawsze podane w notatkach danego
 wydania.
@@ -56,6 +56,17 @@ Uruchom instalator ponownie:
 Nie instaluj nowego wydania na starszy patch. Najpierw użyj opcji `3` albo
 przywróć czyste pliki przez Steam.
 
+## Instalacja Kubuntu
+
+1. W Steam sprawdź spójność plików Chained Echoes i zamknij grę.
+2. Pobierz i rozpakuj ZIP oznaczony `linux-x64`.
+3. Uruchom `Uruchom-instalator.sh` w terminalu — bez `sudo`.
+4. Potwierdź wykrytą bibliotekę Steam, wybierz `1`, a w grze pozostaw język
+   **English**.
+
+Wydania Windows i Kubuntu zawierają te same zweryfikowane payloady. Instalator
+kieruje bundle odpowiednio do `StandaloneWindows64` lub `StandaloneLinux64`.
+
 ## Zgłaszanie problemów
 
 Użyj zakładki **Issues** i podaj:
@@ -70,6 +81,7 @@ Nie dołączaj plików gry, save'ów ani całych logów zawierających dane kont
 
 ## Dla maintainerów
 
+Źródła wspólnego instalatora i fabryki wydań są w [installer/](installer/).
 Procedura publikowania kolejnych ZIP-ów znajduje się w
-[docs/RELEASING.md](docs/RELEASING.md). Binariów wydań nie commitujemy — są
-dodawane jako assets GitHub Releases wraz z plikiem SHA-256.
+[docs/RELEASING.md](docs/RELEASING.md). Binariów, payloadów i manifestów
+roboczych nie commitujemy — trafiają wyłącznie do assets GitHub Releases.

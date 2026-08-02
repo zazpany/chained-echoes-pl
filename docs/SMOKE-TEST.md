@@ -1,4 +1,4 @@
-# Smoke test Windows
+# Smoke test Windows i Kubuntu
 
 Ta checklista dotyczy publicznego pre-release. Wykonuj ją na legalnej kopii gry
 Steam i nie dołączaj plików gry do zgłoszenia.
@@ -13,11 +13,13 @@ Steam i nie dołączaj plików gry do zgłoszenia.
 
 ## Instalacja
 
-- [ ] Rozpakuj ZIP i uruchom `ChainedEchoesPolishInstaller.exe`.
+- [ ] Rozpakuj właściwy ZIP: `win-x64` albo `linux-x64`.
+- [ ] Windows: uruchom `ChainedEchoesPolishInstaller.exe`; Kubuntu: uruchom
+  `Uruchom-instalator.sh` bez `sudo`.
 - [ ] Potwierdź automatycznie wykryty katalog gry.
 - [ ] Wybierz opcję `1`.
 - [ ] Instalator zakończy operację zielonym komunikatem.
-- [ ] Opcja `2` potwierdzi zgodność wszystkich siedmiu plików.
+- [ ] Opcja `2` potwierdzi zgodność wszystkich plików z manifestem.
 
 ## Gra
 

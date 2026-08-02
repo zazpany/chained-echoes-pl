@@ -1,0 +1,91 @@
+{
+  "schema": "echoforge.chained-echoes-installer-baseline/v1",
+  "game": {
+    "name": "Chained Echoes",
+    "steam_app_id": 1229240,
+    "steam_build_id": "21147362",
+    "windows_depot_id": "1229241",
+    "windows_manifest_id": "4324094042134499836"
+  },
+  "static_files": [
+    {
+      "payload_name": "gfx_assets_all.bundle",
+      "role": "polish-fonts",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx_assets_all.bundle",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx_assets_all.bundle"
+      },
+      "source_sha256": "8d038846b34b782e3fe7c56ed102e0f33de9360edb2f5ff03f6e8dab4b1aca7f",
+      "source_size": 1609630,
+      "output_sha256": "a82bd569919bdefaf76a776c761f75385ada53bf3ecccd33c63ff51f752760d1",
+      "output_size": 1666155
+    },
+    {
+      "payload_name": "gfx2_assets_all.bundle",
+      "role": "polish-fonts",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx2_assets_all.bundle",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx2_assets_all.bundle"
+      },
+      "source_sha256": "c801b782c453cb7d7c51f4d57fcafe8118afa358442559321b026a2204e0d491",
+      "source_size": 4997680,
+      "output_sha256": "322d85af3f79f802a6a571633c72b32ec50c49bb0cc7413c39f749efddbfd30e",
+      "output_size": 5124230
+    },
+    {
+      "payload_name": "systemgfx_assets_all.bundle",
+      "role": "polish-fonts",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/systemgfx_assets_all.bundle",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/systemgfx_assets_all.bundle"
+      },
+      "source_sha256": "ce78e96528fdbfe8139e4599a99e3e0ef1b83f61b940f4ea3d5a3adedfb3026e",
+      "source_size": 28357965,
+      "output_sha256": "5033ad2ea453378ea9aa6ea5e0c352df661cfca48e2feb209a07854c1e7e0556",
+      "output_size": 28576640
+    },
+    {
+      "payload_name": "duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle",
+      "role": "polish-fonts",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle"
+      },
+      "source_sha256": "ebc0595066688fee093fe9062bc7be0a6d524d857a224103ea449ccd56f6bacd",
+      "source_size": 17686605,
+      "output_sha256": "b3e885cd6e5a230037f38467a7fbad713c1c42356ce3c07f8908e2efc995f471",
+      "output_size": 18109952
+    },
+    {
+      "payload_name": "catalog.json",
+      "role": "cumulative-addressables-catalog",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/catalog.json",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/catalog.json"
+      },
+      "source_sha256": "bf885b308f21808cdff777fc8752a33e9f761288400549f1a2734548db2d9cb4",
+      "source_size": 3452974,
+      "output_sha256": "4b1c46a1bf717ccf288b2d4e731ec72a5f64d1b9de33bc39f03834a6dafc1774",
+      "output_size": 3452974,
+      "installed_last": true
+    }
+  ],
+  "dynamic_files": {
+    "dialogue": {
+      "payload_name": "packedassets_assets_all.bundle",
+      "role": "reviewed-dialogue-translations",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/packedassets_assets_all.bundle",
+        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/packedassets_assets_all.bundle"
+      }
+    },
+    "database": {
+      "payload_name": "bansheegz_database.bytes",
+      "role": "reviewed-database-translations",
+      "target_paths": {
+        "windows": "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes",
+        "linux": "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes"
+      }
+    }
+  }
+}
