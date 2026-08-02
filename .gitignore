@@ -1,0 +1,19 @@
+# Release assets belong to GitHub Releases, never to Git history.
+*.exe
+*.zip
+*.sha256
+SHA256SUMS.txt
+dist/
+
+# Game and generated payload files must never be committed.
+*.bundle
+*.bytes
+catalog.json
+payload/
+release-evidence/
+
+# Local tooling.
+.idea/
+.vscode/
+*.user
+*.suo

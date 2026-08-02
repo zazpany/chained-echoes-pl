@@ -1,0 +1,50 @@
+name: Problem z patchem
+description: Zgłoś błąd instalatora albo tłumaczenia
+title: "[Błąd] "
+labels:
+  - bug
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Wersja patcha
+      placeholder: np. 0.2.0
+    validations:
+      required: true
+  - type: input
+    id: steam_build
+    attributes:
+      label: Build Steam
+      description: Numer builda widoczny we właściwościach gry lub notatkach wydania
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Etap
+      options:
+        - Instalacja
+        - Weryfikacja
+        - Uruchomienie gry
+        - Tłumaczenie lub fonty
+        - Odinstalowanie
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Opis problemu
+      description: Podaj dokładne kroki i pełny komunikat błędu
+    validations:
+      required: true
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Kontrola wstępna
+      options:
+        - label: Gra była zamknięta
+          required: true
+        - label: Przed instalacją sprawdziłem spójność plików w Steam
+          required: true
+        - label: Nie dołączam plików gry ani danych prywatnych
+          required: true
