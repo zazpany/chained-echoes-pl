@@ -28,9 +28,12 @@ Pozostaw język gry ustawiony na **English**.
 - [ ] Gra uruchamia się bez błędu i dochodzi do ekranu tytułowego.
 - [ ] Polskie znaki `ąćęłńóśźż` oraz wielkie odpowiedniki są wyświetlane poprawnie.
 - [ ] Menu, opcje, sterowanie oraz zapis/odczyt nie mają pustych etykiet.
-- [ ] Nowa gra wyświetla polski prolog z rozmów 166–186.
+- [ ] Nowa gra wyświetla polskie dialogi od aktywnych linii rozmowy 165;
+      dalsza rozgrywka pozostaje po polsku co najmniej przez rozmowę 195.
 - [ ] Ekrany przedmiotów pokazują polskie nazwy i opisy z aktualnego checkpointu.
 - [ ] Ekrany umiejętności kilku postaci i Sky Armor wyświetlają polskie nazwy.
+- [ ] Bestiariusz pokazuje polskie nazwy i opisy przetłumaczonych przeciwników.
+- [ ] Dziennik zadań pokazuje polskie tytuły, opisy i cele zadań.
 - [ ] Dłuższe teksty nie powodują awarii; zanotuj przycięcia lub złe zawijanie.
 - [ ] Zapisz grę, zamknij ją, uruchom ponownie i wczytaj zapis.
 - [ ] Sprawdź `Player.log` pod kątem błędów BGDatabase, Addressables, indeksów i kodowania.
