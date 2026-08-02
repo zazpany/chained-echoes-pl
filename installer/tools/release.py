@@ -21,7 +21,7 @@ PAYLOAD_DIR = ROOT / "src" / "Installer.Win" / "Payload"
 EVIDENCE_DIR = ROOT / "release-evidence"
 DIST_DIR = ROOT / "dist"
 DB_PATCH_DIR = Path("var/runtime-patches/ef001-database-reviewed-v1")
-PROLOGUE_PATCH_DIR = Path("var/runtime-patches/ef001-prologue-166-186-v1")
+PROLOGUE_PATCH_DIR = Path("var/runtime-patches/ef001-dialogue-165-195-v3")
 SHA_PREFIX = "sha256:"
 FIXED_ZIP_TIME = (2020, 1, 1, 0, 0, 0)
 
@@ -135,6 +135,7 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     db_payload_path = db_dir / "bansheegz_database.bytes"
     prologue_manifest_path = prologue_dir / "manifest.json"
     prologue_payload_path = prologue_dir / "packedassets_assets_all.bundle"
+    catalog_payload_path = prologue_dir / "catalog.json"
     db = load_json(db_manifest_path)
     prologue = load_json(prologue_manifest_path)
 
@@ -174,6 +175,9 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     source_dialogue = prologue.get("source_bundle", {})
     output_dialogue = prologue.get("output_bundle", {})
     verify_file(prologue_payload_path, output_dialogue["sha256"], output_dialogue["size"])
+    output_catalog = prologue.get("catalog", {})
+    verify_file(catalog_payload_path, output_catalog["output_catalog_sha256"],
+                output_catalog["catalog_size"])
 
     payload_source = args.payload_source.resolve()
     static_files = baseline.get("static_files", [])
@@ -181,10 +185,17 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     PAYLOAD_DIR.mkdir(parents=True, exist_ok=True)
     files: list[dict[str, Any]] = []
     for entry in static_files:
-        source = payload_source / entry["payload_name"]
-        verify_file(source, entry["output_sha256"], entry["output_size"])
-        copy_file(source, PAYLOAD_DIR / entry["payload_name"])
-        files.append(dict(entry))
+        current = dict(entry)
+        if entry["payload_name"] == "catalog.json":
+            current["output_sha256"] = strip_sha(
+                output_catalog["output_catalog_sha256"])
+            current["output_size"] = output_catalog["catalog_size"]
+            source = catalog_payload_path
+        else:
+            source = payload_source / entry["payload_name"]
+        verify_file(source, current["output_sha256"], current["output_size"])
+        copy_file(source, PAYLOAD_DIR / current["payload_name"])
+        files.append(current)
 
     dynamic = baseline["dynamic_files"]
     dialogue_entry = {
