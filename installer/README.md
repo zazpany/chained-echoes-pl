@@ -14,7 +14,8 @@ Paczka zawiera także dowody budowy bazy, dialogów i fontów w `evidence/`.
    **Sprawdź spójność plików gry**.
 2. Zamknij grę i rozpakuj ZIP `win-x64`.
 3. Uruchom `ChainedEchoesPolishInstaller.exe`.
-4. Potwierdź automatycznie wykryty katalog Steam.
+4. Potwierdź automatycznie wykryty katalog Steam. Przy wyborze ręcznym możesz
+   wskazać katalog gry, plik EXE albo `Chained_Echoes_Data`.
 5. Wybierz `1 — ZAINSTALUJ` i odpowiedz `T`.
 
 Niepodpisany EXE może wywołać ostrzeżenie SmartScreen. Najpierw porównaj jego

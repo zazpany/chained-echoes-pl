@@ -368,11 +368,26 @@ def publish(args: argparse.Namespace, notes: Path, archives: list[Path]) -> None
          "--title", f"Chained Echoes PL {args.version}", "--notes-file", str(notes), *assets])
 
 
+def retag_staged_manifest(manifest: dict[str, Any], version: str) -> dict[str, Any]:
+    """Retag a previously verified payload set without changing its content scope."""
+    changed = dict(manifest)
+    changed["version"] = version
+    changed["release_id"] = f"chained-echoes-polish-ef001-{version}"
+    changed["status"] = "windows-kubuntu-release-candidate"
+    PAYLOAD_DIR.joinpath("release-manifest.json").write_text(
+        json.dumps(changed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return changed
+
+
 def main() -> int:
     args = parse_args()
     try:
-        manifest = (load_json(PAYLOAD_DIR / "release-manifest.json")
-                    if args.skip_prepare else prepare_release(args))
+        if args.skip_prepare:
+            manifest = load_json(PAYLOAD_DIR / "release-manifest.json")
+            if manifest.get("version") != args.version:
+                manifest = retag_staged_manifest(manifest, args.version)
+        else:
+            manifest = prepare_release(args)
         first = build_packages(args.version)
         first_hashes = {path.name: sha256(path) for path in first}
         if not args.no_determinism_check:

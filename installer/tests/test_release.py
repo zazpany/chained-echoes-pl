@@ -5,6 +5,7 @@ import importlib.util
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 from pathlib import Path
 
 
@@ -50,6 +51,22 @@ class ReleaseFactoryTests(unittest.TestCase):
                 info = archive.getinfo("ChainedEchoesPolishInstaller")
                 self.assertEqual((info.external_attr >> 16) & 0o777, 0o755)
                 self.assertEqual(info.date_time, release.FIXED_ZIP_TIME)
+
+    def test_retag_changes_only_release_identity_fields(self) -> None:
+        manifest = {
+            "release_id": "chained-echoes-polish-ef001-0.2.0",
+            "version": "0.2.0",
+            "status": "old-status",
+            "files": [{"payload_name": "unchanged.bundle"}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            with mock.patch.object(release, "PAYLOAD_DIR", Path(temporary)):
+                changed = release.retag_staged_manifest(manifest, "0.2.0-rc.2")
+        self.assertEqual(changed["version"], "0.2.0-rc.2")
+        self.assertEqual(
+            changed["release_id"], "chained-echoes-polish-ef001-0.2.0-rc.2")
+        self.assertEqual(changed["files"], manifest["files"])
+        self.assertEqual(manifest["version"], "0.2.0")
 
 
 if __name__ == "__main__":

@@ -50,9 +50,17 @@ public static class ReleaseManifestLoader
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     };
 
-    public static InstallerPackage Load(Stream stream)
+    public static InstallerPackage Load(Stream stream, string? targetPlatform = null)
     {
         ArgumentNullException.ThrowIfNull(stream);
+        targetPlatform ??= OperatingSystem.IsWindows()
+            ? "windows"
+            : OperatingSystem.IsLinux()
+                ? "linux"
+                : throw new PlatformNotSupportedException(
+                    "Instalator obsługuje tylko Windows x64 i Linux x64.");
+        Require(targetPlatform is "windows" or "linux",
+            "Nieobsługiwana platforma docelowa manifestu.");
         ReleaseManifest manifest;
         try
         {
@@ -87,7 +95,9 @@ public static class ReleaseManifestLoader
         var files = new List<PackageFile>(manifest.Files!.Count);
         foreach (var entry in manifest.Files)
         {
-            var (relativePath, targetPaths) = SelectAndValidateTargetPaths(entry.TargetPaths);
+            var (relativePath, targetPaths) = SelectAndValidateTargetPaths(
+                entry.TargetPaths,
+                targetPlatform);
             RequireSafePayloadName(entry.PayloadName);
             RequireText(entry.Role, "files[].role");
             RequireSha256(entry.SourceSha256, "files[].source_sha256");
@@ -183,7 +193,8 @@ public static class ReleaseManifestLoader
 
     private static (string Selected, IReadOnlyDictionary<string, string> All)
         SelectAndValidateTargetPaths(
-        IReadOnlyDictionary<string, string>? targetPaths)
+        IReadOnlyDictionary<string, string>? targetPaths,
+        string targetPlatform)
     {
         Require(targetPaths is not null, "Brak files[].target_paths.");
         Require(targetPaths!.Count == 2
@@ -195,13 +206,7 @@ public static class ReleaseManifestLoader
             RequireSafeRelativePath(path);
         }
 
-        var platform = OperatingSystem.IsWindows()
-            ? "windows"
-            : OperatingSystem.IsLinux()
-                ? "linux"
-                : throw new PlatformNotSupportedException(
-                    "Instalator obsługuje tylko Windows x64 i Linux x64.");
-        return (targetPaths[platform], targetPaths);
+        return (targetPaths[targetPlatform], targetPaths);
     }
 
     private static void RequireSafePayloadName(string? value)

@@ -22,6 +22,8 @@ internal sealed class InstallerTests
         Run(nameof(ManifestRejectsPathTraversal), ManifestRejectsPathTraversal);
         Run(nameof(ManifestRejectsDuplicatePayload), ManifestRejectsDuplicatePayload);
         Run(nameof(ManifestRejectsWeakenedSafetyContract), ManifestRejectsWeakenedSafetyContract);
+        Run(nameof(ManifestSelectsBothTargetLayouts), ManifestSelectsBothTargetLayouts);
+        Run(nameof(ManifestRejectsUnsupportedTargetLayout), ManifestRejectsUnsupportedTargetLayout);
         Run(nameof(InstallVerifyRollbackReinstallRoundTrip), InstallVerifyRollbackReinstallRoundTrip);
         Run(nameof(MixedLayeredSourceIsRejectedBeforeBackup), MixedLayeredSourceIsRejectedBeforeBackup);
         Run(nameof(UnknownSourceIsRejectedBeforeBackup), UnknownSourceIsRejectedBeforeBackup);
@@ -30,7 +32,7 @@ internal sealed class InstallerTests
         Run(nameof(WriteFailureRollsBackToCleanClient), WriteFailureRollsBackToCleanClient);
         Run(nameof(UnrelatedFilesRemainUntouched), UnrelatedFilesRemainUntouched);
         Run(nameof(CorruptedBackupBlocksRollback), CorruptedBackupBlocksRollback);
-        Console.WriteLine("SELF-TEST OK: 14/14");
+        Console.WriteLine("SELF-TEST OK: 16/16");
     }
 
     private static void ProductionPayloadMatchesContract()
@@ -87,6 +89,26 @@ internal sealed class InstallerTests
             "\"automatic_rollback_on_failure\": true",
             "\"automatic_rollback_on_failure\": false",
             StringComparison.Ordinal));
+    }
+
+    private static void ManifestSelectsBothTargetLayouts()
+    {
+        var windows = LoadProductionPackage("windows");
+        var linux = LoadProductionPackage("linux");
+        Assert(windows.Files.Any(file => file.RelativePath.Contains(
+            "/StandaloneWindows64/", StringComparison.Ordinal)),
+            "Windows target layout");
+        Assert(linux.Files.Any(file => file.RelativePath.Contains(
+            "/StandaloneLinux64/", StringComparison.Ordinal)),
+            "Linux target layout");
+        Assert(windows.Files.Single(file => file.PayloadName == "bansheegz_database.bytes").RelativePath
+            == linux.Files.Single(file => file.PayloadName == "bansheegz_database.bytes").RelativePath,
+            "shared database target path");
+    }
+
+    private static void ManifestRejectsUnsupportedTargetLayout()
+    {
+        AssertThrows<InvalidDataException>(() => LoadProductionPackage("macos"));
     }
 
     private static void ReleaseEvidenceMatchesManifest()
@@ -323,7 +345,7 @@ internal sealed class InstallerTests
         throw new DirectoryNotFoundException("Nie znaleziono katalogu projektu instalatora.");
     }
 
-    private static InstallerPackage LoadProductionPackage()
+    private static InstallerPackage LoadProductionPackage(string? targetPlatform = null)
     {
         var path = Path.Combine(
             FindProjectRoot(),
@@ -332,7 +354,7 @@ internal sealed class InstallerTests
             "Payload",
             "release-manifest.json");
         using var stream = File.OpenRead(path);
-        return ReleaseManifestLoader.Load(stream);
+        return ReleaseManifestLoader.Load(stream, targetPlatform);
     }
 
     private static void AssertManifestMutationRejected(Func<string, string> mutate)

@@ -1,5 +1,5 @@
-using System.Text.RegularExpressions;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace ChainedEchoesPolishInstaller;
@@ -52,40 +52,111 @@ internal static partial class SteamLocator
         foreach (var library in libraries)
         {
             var candidate = Path.Combine(library, "steamapps", "common", "Chained Echoes");
-            if (IsGameDirectory(candidate))
+            if (TryResolveGameDirectory(candidate, out var resolved, out _))
             {
-                return Path.GetFullPath(candidate);
+                return resolved;
             }
         }
 
         return null;
     }
 
-    public static bool IsGameDirectory(string path) =>
-        File.Exists(Path.Combine(
-            path,
-            OperatingSystem.IsWindows()
-                ? "Chained Echoes.exe"
-                : "Chained_Echoes.x86_64"))
-        && Directory.Exists(Path.Combine(
-            path,
+    public static string ResolveGameDirectory(string input)
+    {
+        if (TryResolveGameDirectory(input, out var resolved, out var problem))
+        {
+            return resolved!;
+        }
+
+        throw new DirectoryNotFoundException(problem);
+    }
+
+    public static bool TryResolveGameDirectory(
+        string? input,
+        out string? gameDirectory,
+        out string problem)
+    {
+        gameDirectory = null;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            problem = "Nie podano ścieżki.";
+            return false;
+        }
+
+        var value = input.Trim().Trim('"', '\'');
+        try
+        {
+            value = Path.GetFullPath(value);
+        }
+        catch (Exception error) when (error is ArgumentException
+            or NotSupportedException
+            or PathTooLongException)
+        {
+            problem = $"Nieprawidłowa ścieżka: {error.Message}";
+            return false;
+        }
+
+        if (File.Exists(value))
+        {
+            value = Path.GetDirectoryName(value) ?? value;
+        }
+
+        var current = new DirectoryInfo(value);
+        for (var depth = 0; current is not null && depth < 10; depth++, current = current.Parent)
+        {
+            var candidate = current.Name.Equals(
+                "Chained_Echoes_Data",
+                StringComparison.OrdinalIgnoreCase)
+                ? current.Parent?.FullName
+                : current.FullName;
+            if (candidate is not null && HasDataDirectory(candidate))
+            {
+                gameDirectory = Path.GetFullPath(candidate);
+                problem = string.Empty;
+                return true;
+            }
+        }
+
+        problem = "Nie znaleziono katalogu Chained_Echoes_Data w podanej ścieżce ani nad nią.";
+        return false;
+    }
+
+    public static string DetectAssetPlatform(string gameDirectory)
+    {
+        var root = Path.Combine(
+            gameDirectory,
             "Chained_Echoes_Data",
             "StreamingAssets",
-            "aa",
-            OperatingSystem.IsWindows()
-                ? "StandaloneWindows64"
-                : "StandaloneLinux64"))
-        && File.Exists(Path.Combine(
-            path,
-            "Chained_Echoes_Data",
-            "StreamingAssets",
-            "aa",
-            "catalog.json"))
-        && File.Exists(Path.Combine(
-            path,
-            "Chained_Echoes_Data",
-            "StreamingAssets",
-            "bansheegz_database.bytes"));
+            "aa");
+        var windows = Directory.Exists(Path.Combine(root, "StandaloneWindows64"));
+        var linux = Directory.Exists(Path.Combine(root, "StandaloneLinux64"));
+        if (OperatingSystem.IsWindows() && windows)
+        {
+            return "windows";
+        }
+
+        if (OperatingSystem.IsLinux() && linux)
+        {
+            return "linux";
+        }
+
+        if (windows)
+        {
+            return "windows";
+        }
+
+        if (linux)
+        {
+            return "linux";
+        }
+
+        throw new DirectoryNotFoundException(
+            "Nie znaleziono ani StreamingAssets/aa/StandaloneWindows64, "
+            + "ani StreamingAssets/aa/StandaloneLinux64. Instalator niczego nie zmienił.");
+    }
+
+    private static bool HasDataDirectory(string path) =>
+        Directory.Exists(Path.Combine(path, "Chained_Echoes_Data"));
 
     [SupportedOSPlatform("windows")]
     private static void AddRegistrySteamPath(

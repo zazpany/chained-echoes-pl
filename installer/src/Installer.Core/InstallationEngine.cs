@@ -375,21 +375,35 @@ public sealed class InstallationEngine
 
     private static void ValidateGameDirectory(string gameDirectory)
     {
-        if (string.IsNullOrWhiteSpace(gameDirectory)
-            || !Directory.Exists(gameDirectory)
-            || !File.Exists(Path.Combine(
-                gameDirectory,
-                OperatingSystem.IsWindows()
-                    ? "Chained Echoes.exe"
-                    : "Chained_Echoes.x86_64"))
-            || !File.Exists(Path.Combine(
-                gameDirectory,
-                "Chained_Echoes_Data",
-                "StreamingAssets",
-                "bansheegz_database.bytes")))
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(gameDirectory) || !Directory.Exists(gameDirectory))
         {
             throw new DirectoryNotFoundException(
-                "Wybrany katalog nie jest kompletną instalacją Chained Echoes dla Steam/Proton.");
+                $"Katalog gry nie istnieje: {gameDirectory}");
+        }
+
+        var executable = OperatingSystem.IsWindows()
+            ? "Chained Echoes.exe"
+            : "Chained_Echoes.x86_64";
+        if (!File.Exists(Path.Combine(gameDirectory, executable)))
+        {
+            missing.Add(executable);
+        }
+
+        const string database =
+            "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes";
+        if (!File.Exists(Path.Combine(
+            gameDirectory,
+            database.Replace('/', Path.DirectorySeparatorChar))))
+        {
+            missing.Add(database);
+        }
+
+        if (missing.Count > 0)
+        {
+            throw new DirectoryNotFoundException(
+                "Wybrany katalog nie jest kompletną instalacją Chained Echoes. Brakuje:\n  - "
+                + string.Join("\n  - ", missing));
         }
     }
 

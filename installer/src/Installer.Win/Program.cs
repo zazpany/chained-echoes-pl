@@ -19,7 +19,14 @@ internal static class Program
             var package = ReleaseManifestLoader.Load(manifest);
             PrintHeader(package);
             var parsed = ParseArguments(args);
-            var gameDirectory = parsed.GameDirectory ?? ResolveGameDirectory(interactive);
+            var gameDirectory = parsed.GameDirectory is null
+                ? ResolveGameDirectory(interactive)
+                : SteamLocator.ResolveGameDirectory(parsed.GameDirectory);
+            var assetPlatform = SteamLocator.DetectAssetPlatform(gameDirectory);
+            using (var platformManifest = payloads.OpenRead("release-manifest.json"))
+            {
+                package = ReleaseManifestLoader.Load(platformManifest, assetPlatform);
+            }
             var action = parsed.Action ?? SelectAction();
             var engine = new InstallationEngine(
                 package,
@@ -28,6 +35,7 @@ internal static class Program
 
             Console.WriteLine();
             Console.WriteLine($"Katalog gry: {gameDirectory}");
+            Console.WriteLine($"Układ plików Addressables: {assetPlatform}");
             Console.WriteLine();
             switch (action)
             {
@@ -103,7 +111,7 @@ internal static class Program
         {
             if (args[index] == "--game-dir" && index + 1 < args.Length)
             {
-                gameDirectory = Path.GetFullPath(args[++index]);
+                gameDirectory = args[++index];
             }
             else if (args[index] is "install" or "verify" or "rollback" or "uninstall")
             {
@@ -140,14 +148,15 @@ internal static class Program
         while (true)
         {
             Console.Write("Wklej pełną ścieżkę do katalogu „Chained Echoes”: ");
-            var value = Console.ReadLine()?.Trim().Trim('"');
-            if (!string.IsNullOrWhiteSpace(value) && SteamLocator.IsGameDirectory(value))
+            var value = Console.ReadLine();
+            if (SteamLocator.TryResolveGameDirectory(value, out var resolved, out var problem))
             {
-                return Path.GetFullPath(value);
+                return resolved!;
             }
 
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("To nie jest katalog zawierający Chained_Echoes_Data. Spróbuj ponownie.");
+            Console.WriteLine(problem);
+            Console.WriteLine("Możesz wkleić katalog „Chained Echoes”, plik EXE albo katalog Chained_Echoes_Data.");
             Console.ResetColor();
         }
     }
