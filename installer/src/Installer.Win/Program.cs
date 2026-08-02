@@ -40,7 +40,7 @@ internal static class Program
             switch (action)
             {
                 case "install":
-                    ConfirmInstall();
+                    ConfirmInstall(package);
                     engine.Install(gameDirectory);
                     break;
                 case "verify":
@@ -183,10 +183,13 @@ internal static class Program
         }
     }
 
-    private static void ConfirmInstall()
+    private static void ConfirmInstall(InstallerPackage package)
     {
+        var scope = package.TranslationScope;
         Console.WriteLine("Zostanie zainstalowany pełny cumulative patch EF-001.");
-        Console.WriteLine("Obejmuje fonty, katalog, dialogi 166–186, UI, przedmioty i umiejętności.");
+        Console.WriteLine(
+            $"Obejmuje fonty, katalog, dialogi {scope.DialogueConversations} "
+            + "oraz bieżące tłumaczenia BGDatabase.");
         Console.WriteLine("Gra musi być zamknięta, a wszystkie pliki muszą pochodzić z czystego klienta.");
         Console.WriteLine("Przed pierwszym zapisem powstanie pełny, zweryfikowany backup.");
         if (!AskYesNo("Kontynuować?"))
