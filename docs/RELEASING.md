@@ -5,9 +5,8 @@ Nie publikujemy incremental patchy zależnych od wcześniejszej instalacji.
 
 ## Jedno polecenie
 
-Statyczne payloady fontów i `catalog.json` są przechowywane prywatnie. Bieżąca
-baza i dialogi są pobierane z ignorowanego `var/runtime-patches/` w czystym
-worktree EchoForge.
+Wszystkie payloady są pobierane z podwójnie zbudowanego, siedmioplikowego RC
+ND-7 w ignorowanym `var/runtime-patches/` czystego worktree EchoForge.
 
 ```bash
 cd installer
@@ -20,14 +19,15 @@ python3 tools/release.py \
 Generator:
 
 1. odrzuca brudny checkpoint EchoForge;
-2. sprawdza dowody dopasowania źródeł, brak placeholderów/review-required,
+2. wymaga preflightu 9/9 i dokładnego RC `ef001-nd7-rc1`;
+3. sprawdza dowody dopasowania źródeł, brak placeholderów/review-required,
    strukturę bazy, pola poza zakresem i byte-identical rebuild;
-3. waliduje SHA-256 i rozmiary bazy, dialogów, fontów i katalogu;
-4. generuje jeden ścisły manifest dla Windows oraz Kubuntu;
-5. uruchamia testy C# i Pythona;
-6. buduje self-contained `win-x64` i `linux-x64`;
-7. tworzy deterministyczne ZIP-y i powtarza build dla porównania bajtowego;
-8. zapisuje sumy SHA-256 oraz notatki wydania w `installer/dist/`.
+4. waliduje SHA-256, CRC32 i rozmiary wszystkich siedmiu plików;
+5. generuje jeden ścisły manifest dla Windows oraz Kubuntu;
+6. uruchamia testy C# i Pythona;
+7. buduje self-contained `win-x64` i `linux-x64`;
+8. tworzy deterministyczne ZIP-y i powtarza build dla porównania bajtowego;
+9. zapisuje sumy SHA-256 oraz notatki wydania w `installer/dist/`.
 
 Dodanie poniższych parametrów publikuje oba ZIP-y jako GitHub prerelease:
 

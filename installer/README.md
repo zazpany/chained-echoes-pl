@@ -80,18 +80,18 @@ Kubuntu:
 
 ## Jedno polecenie dla opiekuna wydania
 
-Wymagane są Python 3 i .NET SDK 8. Statyczne payloady fontów i katalogu są
-trzymane prywatnie; binaria gry pozostają poza repozytorium publicznym.
+Wymagane są Python 3 i .NET SDK 8. Fabryka pobiera wszystkie siedem payloadów
+z podwójnie zbudowanego i zweryfikowanego kandydata ND-7 w ignorowanym
+`var/runtime-patches/`. Binaria gry pozostają poza historią publicznego repo.
 
 ```bash
 python3 tools/release.py \
-  --version 0.2.0-rc.2 \
-  --echoforge-root /ścieżka/do/czystego/worktree/EchoForge \
-  --payload-source /ścieżka/do/prywatnych/payloadów
+  --version VERSION \
+  --echoforge-root /ścieżka/do/czystego/worktree/EchoForge
 ```
 
-Polecenie wymaga czystego checkpointu EchoForge, pobiera bieżące zweryfikowane
-artefakty bazy i dialogów, waliduje fonty, generuje manifest i evidence,
+Polecenie wymaga czystego checkpointu EchoForge, pobiera dokładny siedmioplikowy
+RC ND-7, waliduje bazę, dialogi, DLC, fonty i katalog, generuje manifest i evidence,
 uruchamia self-testy, buduje oba self-contained instalatory, tworzy
 deterministyczne ZIP-y i sprawdza drugi byte-identical rebuild.
 

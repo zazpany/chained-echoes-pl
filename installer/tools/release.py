@@ -20,8 +20,19 @@ ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD_DIR = ROOT / "src" / "Installer.Win" / "Payload"
 EVIDENCE_DIR = ROOT / "release-evidence"
 DIST_DIR = ROOT / "dist"
-DB_PATCH_DIR = Path("var/runtime-patches/ef001-database-reviewed-v1")
-PROLOGUE_PATCH_DIR = Path("var/runtime-patches/ef001-dialogue-165-195-v3")
+ND7_PATCH_DIR = Path("var/runtime-patches/ef001-nd7-rc1")
+DATABASE_INVENTORY = Path("var/runtime-patches/ef001-database-reviewed-v1/inventory.json")
+EXPECTED_RC_FILES = frozenset(
+    {
+        "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes",
+        "Chained_Echoes_Data/StreamingAssets/aa/catalog.json",
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/packedassets_assets_all.bundle",
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle",
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx_assets_all.bundle",
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx2_assets_all.bundle",
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/systemgfx_assets_all.bundle",
+    }
+)
 SHA_PREFIX = "sha256:"
 FIXED_ZIP_TIME = (2020, 1, 1, 0, 0, 0)
 
@@ -35,15 +46,6 @@ def parse_args() -> argparse.Namespace:
         description="Buduje zweryfikowane instalatory Windows i Kubuntu z jednego manifestu.")
     parser.add_argument("--version", required=True, help="Wersja, np. 0.2.0-rc.2")
     parser.add_argument("--echoforge-root", type=Path, required=True)
-    parser.add_argument(
-        "--payload-source",
-        type=Path,
-        default=PAYLOAD_DIR,
-        help="Prywatny katalog z fontami i catalog.json (domyślnie bieżący Payload).")
-    parser.add_argument(
-        "--font-manifest",
-        type=Path,
-        default=EVIDENCE_DIR / "font-manifest.json")
     parser.add_argument("--skip-prepare", action="store_true")
     parser.add_argument("--no-determinism-check", action="store_true")
     parser.add_argument("--publish", action="store_true")
@@ -119,6 +121,107 @@ def evidence_entry(path: Path) -> dict[str, Any]:
     return {"name": path.name, "sha256": sha256(path), "size": path.stat().st_size}
 
 
+def _require_identity(value: object, label: str) -> dict[str, Any]:
+    require(isinstance(value, dict), f"Brak tożsamości pliku: {label}.")
+    identity = value
+    digest = identity.get("sha256")
+    require(isinstance(digest, str) and re.fullmatch(r"(?:sha256:)?[0-9a-fA-F]{64}", digest)
+            is not None, f"Nieprawidłowy SHA-256: {label}.")
+    require(isinstance(identity.get("size"), int) and identity["size"] > 0,
+            f"Nieprawidłowy rozmiar: {label}.")
+    require(isinstance(identity.get("file_crc32"), int),
+            f"Brak CRC32: {label}.")
+    return identity
+
+
+def validate_nd7_release(
+    release: dict[str, Any],
+    database: dict[str, Any],
+    base_dialogue: dict[str, Any],
+    dlc_dialogue: dict[str, Any],
+    font_runtime: dict[str, Any],
+    inventory: dict[str, Any],
+) -> None:
+    require(release.get("schema") == "echoforge.nd7-release-candidate/v1alpha1",
+            "Nieobsługiwany manifest ND-7.")
+    require(release.get("patch_id") == "ef001-nd7-rc1", "Nieprawidłowy patch_id ND-7.")
+    require(release.get("installation_enabled") is False,
+            "Kandydat ND-7 nie jest source-only.")
+    require(release.get("runtime_acceptance") == {
+        "required": True, "status": "pending_manual_smoke"},
+        "ND-7 nie oczekuje dokładnie ręcznego smoke testu.")
+    preflight = release.get("preflight", {})
+    require(preflight.get("status") == "ready_for_build"
+            and preflight.get("checks_passed") == 9
+            and preflight.get("blockers") == [],
+            "Preflight ND-7 nie przeszedł 9/9 bramek.")
+    deterministic = release.get("deterministic_rebuild", {})
+    payload_determinism = deterministic.get("payloads")
+    require(deterministic.get("passed") is True
+            and deterministic.get("build_count") == 2
+            and deterministic.get("component_reports") == "byte_identical"
+            and isinstance(payload_determinism, dict)
+            and set(payload_determinism) == EXPECTED_RC_FILES
+            and set(payload_determinism.values()) == {"byte_identical"},
+            "ND-7 nie ma podwójnego byte-identical rebuildu wszystkich payloadów.")
+    files = release.get("files")
+    clean = release.get("clean_client", {}).get("files")
+    require(isinstance(files, dict) and set(files) == EXPECTED_RC_FILES,
+            "ND-7 nie zawiera dokładnego 7-plikowego scope'u.")
+    require(isinstance(clean, dict) and set(clean) == EXPECTED_RC_FILES,
+            "ND-7 nie zawiera dokładnej tożsamości czystego klienta.")
+    for relative in EXPECTED_RC_FILES:
+        _require_identity(files[relative], f"patched {relative}")
+        _require_identity(clean[relative], f"clean {relative}")
+
+    require(database.get("selected_fields") == 5712,
+            "BGDatabase ND-7 nie zawiera dokładnie 5712 pól.")
+    require(database.get("selected_fields")
+            == database.get("changed_fields") + database.get("identical_fields"),
+            "selected_fields != changed_fields + identical_fields.")
+    require(database.get("source_strings_and_sha256_matched") is True,
+            "Źródła pakietów bazy nie zostały w pełni dopasowane.")
+    require(database.get("placeholder_rows_selected") == [],
+            "Baza zawiera techniczne placeholdery.")
+    require(database.get("review_required_rows") == 0,
+            "Baza zawiera wiersze review_required.")
+    require(database.get("duplicate_audit", {}).get("unresolved_conflicting_duplicate_keys") == 0,
+            "Baza zawiera nierozwiązane konflikty.")
+    require(database.get("non_target_comparison", {}).get("result") == "identical",
+            "Pola poza zakresem bazy nie są identyczne.")
+    require(database.get("structural_verification", {}).get("tables_fields_rows_unchanged")
+            is True, "Brak pełnej weryfikacji strukturalnej bazy.")
+    db_deterministic = database.get("deterministic_rebuild", {})
+    output_db = database.get("output_database", {})
+    require(db_deterministic.get("passed") is True
+            and db_deterministic.get("result") == "byte_identical"
+            and strip_sha(db_deterministic.get("second_build_sha256", ""))
+                == strip_sha(output_db.get("sha256", "")),
+            "Baza nie ma dowodu deterministycznego rebuildu.")
+    require(inventory.get("outcome") == "passed"
+            and inventory.get("errors") == []
+            and inventory.get("selected_fields") == 5712
+            and inventory.get("placeholder_rows") == []
+            and inventory.get("review_required_rows") == 0,
+            "Inventory BGDatabase nie przeszedł fail-closed audytu.")
+    require(inventory.get("per_table_counts") == database.get("per_table_counts"),
+            "Inventory i manifest bazy mają różne liczniki per_table.")
+
+    conversations = base_dialogue.get("conversations")
+    require(base_dialogue.get("patch_id") == "ef001-dialogue-165-195-v4"
+            and conversations == list(range(165, 196))
+            and base_dialogue.get("changed_fields") == 2447
+            and base_dialogue.get("unintended_logical_changes") == 0,
+            "Bazowy komponent dialogowy ND-7 nie przeszedł bramki.")
+    require(dlc_dialogue.get("patch_id") == "ef001-dlc-dialogue-actor-labels-v1"
+            and dlc_dialogue.get("changed_fields") == 366
+            and dlc_dialogue.get("unintended_logical_changes") == 0,
+            "Komponent dialogów DLC ND-7 nie przeszedł bramki.")
+    require(font_runtime.get("patch_id") == "ef001-font-polish-v1"
+            and len(font_runtime.get("payloads", [])) == 4,
+            "Manifest polskich fontów ND-7 jest nieprawidłowy.")
+
+
 def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     require(re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.-]{0,39}", args.version) is not None,
             "Nieprawidłowa wersja.")
@@ -128,104 +231,71 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     require(baseline.get("schema") == "echoforge.chained-echoes-installer-baseline/v1",
             "Nieobsługiwany release-baseline.json.")
 
-    db_dir = echoforge / DB_PATCH_DIR
-    prologue_dir = echoforge / PROLOGUE_PATCH_DIR
-    db_manifest_path = db_dir / "manifest.json"
-    db_inventory_path = db_dir / "inventory.json"
-    db_payload_path = db_dir / "bansheegz_database.bytes"
-    prologue_manifest_path = prologue_dir / "manifest.json"
-    prologue_payload_path = prologue_dir / "packedassets_assets_all.bundle"
-    catalog_payload_path = prologue_dir / "catalog.json"
+    rc_dir = echoforge / ND7_PATCH_DIR
+    rc_manifest_path = rc_dir / "manifest.json"
+    component_dir = rc_dir / "component-manifests"
+    db_manifest_path = component_dir / "database.json"
+    base_dialogue_path = component_dir / "base-dialogue.json"
+    dlc_dialogue_path = component_dir / "dlc-dialogue.json"
+    font_manifest_path = component_dir / "font-runtime.json"
+    db_inventory_path = echoforge / DATABASE_INVENTORY
+    rc = load_json(rc_manifest_path)
     db = load_json(db_manifest_path)
-    prologue = load_json(prologue_manifest_path)
+    base_dialogue = load_json(base_dialogue_path)
+    dlc_dialogue = load_json(dlc_dialogue_path)
+    font_runtime = load_json(font_manifest_path)
+    inventory = load_json(db_inventory_path)
+    validate_nd7_release(rc, db, base_dialogue, dlc_dialogue, font_runtime, inventory)
 
-    selected = db.get("selected_fields")
-    changed = db.get("changed_fields")
-    identical = db.get("identical_fields")
-    require(isinstance(selected, int) and selected > 0, "Nieprawidłowe selected_fields bazy.")
-    require(selected == changed + identical,
-            "selected_fields != changed_fields + identical_fields.")
-    require(db.get("source_strings_and_sha256_matched") is True,
-            "Źródła pakietów bazy nie zostały w pełni dopasowane.")
-    require(db.get("placeholder_rows_selected") == [],
-            "Baza zawiera techniczne placeholdery.")
-    require(db.get("review_required_rows") == 0,
-            "Baza zawiera wiersze review_required.")
-    require(db.get("non_target_comparison", {}).get("result") == "identical",
-            "Pola poza zakresem bazy nie są identyczne.")
-    deterministic = db.get("deterministic_rebuild", {})
-    output_db = db.get("output_database", {})
-    source_db = db.get("source_database", {})
-    require(deterministic.get("passed") is True
-            and deterministic.get("result") == "byte_identical"
-            and strip_sha(deterministic.get("second_build_sha256", ""))
-                == strip_sha(output_db.get("sha256", "")),
-            "Baza nie ma dowodu deterministycznego rebuildu.")
-    require(db.get("structural_verification", {}).get("tables_fields_rows_unchanged") is True,
-            "Brak pełnej weryfikacji strukturalnej bazy.")
-    verify_file(db_payload_path, output_db["sha256"], output_db["size"])
-
-    conversations = prologue.get("conversations")
-    require(isinstance(conversations, list) and conversations
-            and conversations == list(range(min(conversations), max(conversations) + 1)),
-            "Manifest dialogów nie zawiera ciągłego zakresu rozmów.")
-    require(prologue.get("changed_fields", 0) > 0, "Brak zatwierdzonych pól dialogowych.")
-    require(prologue.get("unintended_logical_changes") == 0,
-            "Dialogi zawierają niezamierzone zmiany logiczne.")
-    source_dialogue = prologue.get("source_bundle", {})
-    output_dialogue = prologue.get("output_bundle", {})
-    verify_file(prologue_payload_path, output_dialogue["sha256"], output_dialogue["size"])
-    output_catalog = prologue.get("catalog", {})
-    verify_file(catalog_payload_path, output_catalog["output_catalog_sha256"],
-                output_catalog["catalog_size"])
-
-    payload_source = args.payload_source.resolve()
-    static_files = baseline.get("static_files", [])
-    require(len(static_files) == 5, "Baseline musi zawierać cztery fonty i katalog.")
+    selected = db["selected_fields"]
+    changed = db["changed_fields"]
+    identical = db["identical_fields"]
+    files_by_name = {
+        entry["payload_name"]: dict(entry)
+        for entry in [*baseline.get("static_files", []), *baseline.get("dynamic_files", {}).values()]
+    }
+    require(len(files_by_name) == 7, "Baseline musi opisywać dokładnie siedem payloadów.")
     PAYLOAD_DIR.mkdir(parents=True, exist_ok=True)
     files: list[dict[str, Any]] = []
-    for entry in static_files:
-        current = dict(entry)
-        if entry["payload_name"] == "catalog.json":
-            current["output_sha256"] = strip_sha(
-                output_catalog["output_catalog_sha256"])
-            current["output_size"] = output_catalog["catalog_size"]
-            source = catalog_payload_path
-        else:
-            source = payload_source / entry["payload_name"]
-        verify_file(source, current["output_sha256"], current["output_size"])
-        copy_file(source, PAYLOAD_DIR / current["payload_name"])
+    for relative in sorted(EXPECTED_RC_FILES):
+        payload_name = Path(relative).name
+        require(payload_name in files_by_name, f"Baseline nie zna payloadu: {payload_name}.")
+        baseline_entry = files_by_name[payload_name]
+        require(baseline_entry["target_paths"]["linux"] == relative,
+                f"Ścieżka ND-7 nie odpowiada baseline: {relative}.")
+        source_identity = _require_identity(rc["clean_client"]["files"][relative], relative)
+        output_identity = _require_identity(rc["files"][relative], relative)
+        payload_path = rc_dir / relative
+        verify_file(payload_path, output_identity["sha256"], output_identity["size"])
+        role = baseline_entry["role"]
+        if payload_name.startswith("duplicateassetisolation6_"):
+            role = "polish-fonts-and-reviewed-dlc-dialogue"
+        current = {
+            "payload_name": payload_name,
+            "role": role,
+            "target_paths": baseline_entry["target_paths"],
+            "source_sha256": strip_sha(source_identity["sha256"]),
+            "source_size": source_identity["size"],
+            "source_crc32": source_identity["file_crc32"],
+            "output_sha256": strip_sha(output_identity["sha256"]),
+            "output_size": output_identity["size"],
+            "output_crc32": output_identity["file_crc32"],
+        }
+        if payload_name == "bansheegz_database.bytes":
+            current["deterministic_rebuild"] = "byte-identical"
+            current["non_target_comparison"] = "identical"
+        if payload_name == "catalog.json":
+            current["installed_last"] = True
+        copy_file(payload_path, PAYLOAD_DIR / payload_name)
         files.append(current)
-
-    dynamic = baseline["dynamic_files"]
-    dialogue_entry = {
-        **dynamic["dialogue"],
-        "source_sha256": strip_sha(source_dialogue["sha256"]),
-        "source_size": source_dialogue["size"],
-        "output_sha256": strip_sha(output_dialogue["sha256"]),
-        "output_size": output_dialogue["size"],
-    }
-    database_entry = {
-        **dynamic["database"],
-        "source_sha256": strip_sha(source_db["sha256"]),
-        "source_size": source_db["size"],
-        "source_crc32": source_db["file_crc32"],
-        "output_sha256": strip_sha(output_db["sha256"]),
-        "output_size": output_db["size"],
-        "output_crc32": output_db["file_crc32"],
-        "deterministic_rebuild": "byte-identical",
-        "non_target_comparison": "identical",
-    }
-    files.insert(4, dialogue_entry)
-    files.insert(5, database_entry)
-    copy_file(prologue_payload_path, PAYLOAD_DIR / dialogue_entry["payload_name"])
-    copy_file(db_payload_path, PAYLOAD_DIR / database_entry["payload_name"])
 
     evidence_sources = [
         (db_inventory_path, EVIDENCE_DIR / "database-inventory.json"),
         (db_manifest_path, EVIDENCE_DIR / "database-manifest.json"),
-        (prologue_manifest_path, EVIDENCE_DIR / "prologue-manifest.json"),
-        (args.font_manifest.resolve(), EVIDENCE_DIR / "font-manifest.json"),
+        (base_dialogue_path, EVIDENCE_DIR / "base-dialogue-manifest.json"),
+        (dlc_dialogue_path, EVIDENCE_DIR / "dlc-dialogue-manifest.json"),
+        (font_manifest_path, EVIDENCE_DIR / "font-manifest.json"),
+        (rc_manifest_path, EVIDENCE_DIR / "nd7-release-candidate-manifest.json"),
     ]
     for source, target in evidence_sources:
         require(source.is_file(), f"Brak evidence: {source}")
@@ -249,8 +319,8 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
         },
         "evidence_files": evidence,
         "translation_scope": {
-            "dialogue_fields": prologue["changed_fields"],
-            "dialogue_conversations": f"{min(conversations)}-{max(conversations)}",
+            "dialogue_fields": base_dialogue["changed_fields"] + dlc_dialogue["changed_fields"],
+            "dialogue_conversations": "165-195 + etykiety aktorów DLC",
             "database_selected_fields": selected,
             "database_changed_fields": changed,
             "database_identical_fields": identical,

@@ -118,7 +118,7 @@ internal sealed class InstallerTests
             root, "src", "Installer.Win", "Payload", "release-manifest.json");
         using var manifest = JsonDocument.Parse(File.ReadAllBytes(manifestPath));
         var evidence = manifest.RootElement.GetProperty("evidence_files").EnumerateArray().ToArray();
-        Assert(evidence.Length == 4, "release evidence count");
+        Assert(evidence.Length == 6, "release evidence count");
         foreach (var entry in evidence)
         {
             var name = entry.GetProperty("name").GetString()
