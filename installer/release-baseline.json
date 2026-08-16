@@ -1,5 +1,5 @@
 {
-  "schema": "echoforge.chained-echoes-installer-baseline/v1",
+  "schema": "echoforge.chained-echoes-installer-baseline/v2",
   "game": {
     "name": "Chained Echoes",
     "steam_app_id": 1229240,
@@ -7,84 +7,83 @@
     "windows_depot_id": "1229241",
     "windows_manifest_id": "4324094042134499836"
   },
-  "static_files": [
-    {
-      "payload_name": "gfx_assets_all.bundle",
-      "role": "polish-fonts",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx_assets_all.bundle",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx_assets_all.bundle"
-      },
-      "source_sha256": "8d038846b34b782e3fe7c56ed102e0f33de9360edb2f5ff03f6e8dab4b1aca7f",
-      "source_size": 1609630,
-      "output_sha256": "a82bd569919bdefaf76a776c761f75385ada53bf3ecccd33c63ff51f752760d1",
-      "output_size": 1666155
-    },
-    {
-      "payload_name": "gfx2_assets_all.bundle",
-      "role": "polish-fonts",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx2_assets_all.bundle",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx2_assets_all.bundle"
-      },
-      "source_sha256": "c801b782c453cb7d7c51f4d57fcafe8118afa358442559321b026a2204e0d491",
-      "source_size": 4997680,
-      "output_sha256": "322d85af3f79f802a6a571633c72b32ec50c49bb0cc7413c39f749efddbfd30e",
-      "output_size": 5124230
-    },
-    {
-      "payload_name": "systemgfx_assets_all.bundle",
-      "role": "polish-fonts",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/systemgfx_assets_all.bundle",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/systemgfx_assets_all.bundle"
-      },
-      "source_sha256": "ce78e96528fdbfe8139e4599a99e3e0ef1b83f61b940f4ea3d5a3adedfb3026e",
-      "source_size": 28357965,
-      "output_sha256": "5033ad2ea453378ea9aa6ea5e0c352df661cfca48e2feb209a07854c1e7e0556",
-      "output_size": 28576640
-    },
-    {
-      "payload_name": "duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle",
-      "role": "polish-fonts",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle"
-      },
-      "source_sha256": "ebc0595066688fee093fe9062bc7be0a6d524d857a224103ea449ccd56f6bacd",
-      "source_size": 17686605,
-      "output_sha256": "b3e885cd6e5a230037f38467a7fbad713c1c42356ce3c07f8908e2efc995f471",
-      "output_size": 18109952
-    },
-    {
-      "payload_name": "catalog.json",
-      "role": "cumulative-addressables-catalog",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/catalog.json",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/catalog.json"
-      },
-      "source_sha256": "bf885b308f21808cdff777fc8752a33e9f761288400549f1a2734548db2d9cb4",
-      "source_size": 3452974,
-      "output_sha256": "4b1c46a1bf717ccf288b2d4e731ec72a5f64d1b9de33bc39f03834a6dafc1774",
-      "output_size": 3452974,
-      "installed_last": true
-    }
-  ],
-  "dynamic_files": {
-    "dialogue": {
-      "payload_name": "packedassets_assets_all.bundle",
-      "role": "reviewed-dialogue-translations",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/packedassets_assets_all.bundle",
-        "linux": "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/packedassets_assets_all.bundle"
+  "platforms": {
+    "windows": {
+      "files": {
+        "Chained Echoes_Data/StreamingAssets/bansheegz_database.bytes": {
+          "sha256": "sha256:4f4d492117ec26c4bacbeb81f90c9f31b71aeef4aa15b079f2bc6847241419a6",
+          "size": 2201690,
+          "file_crc32": 4107062556
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/catalog.json": {
+          "sha256": "sha256:e087deb34d7155cb3e7135009307eefbdf48114e28f521d2ff2da838c23871cd",
+          "size": 3455522,
+          "file_crc32": 3873742226
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/packedassets_assets_all.bundle": {
+          "sha256": "sha256:cff4e658dd58dcba1f5917802d5b40c230fe1bc55780dc76cd360476e7e3395c",
+          "size": 11357397,
+          "file_crc32": 577979831
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/duplicateassetisolation6_assets_all_0912e6789a7419e465e2306a084992fe.bundle": {
+          "sha256": "sha256:c2bf01eb4ba01e576b0c1c18c47d50b20249170dddebe2db5a0e32d2a5ade762",
+          "size": 17673212,
+          "file_crc32": 227459381
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx_assets_all.bundle": {
+          "sha256": "sha256:5262b108a07c4591db755fca3ff13e40523c4e9341cf043187aeca6ed85cda6e",
+          "size": 1609630,
+          "file_crc32": 1118145983
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx2_assets_all.bundle": {
+          "sha256": "sha256:5495c51b9f5fca4f77665baa5f7886fba4f247b42f1109a6dedd05b55b1ea64a",
+          "size": 4997681,
+          "file_crc32": 2422670502
+        },
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/systemgfx_assets_all.bundle": {
+          "sha256": "sha256:4bfbc86de4e0b2e255fe1bcc24b3e4ef1d6f6065e56736fcb2735359a637261b",
+          "size": 28380728,
+          "file_crc32": 1217292338
+        }
       }
     },
-    "database": {
-      "payload_name": "bansheegz_database.bytes",
-      "role": "reviewed-database-translations",
-      "target_paths": {
-        "windows": "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes",
-        "linux": "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes"
+    "linux": {
+      "files": {
+        "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes": {
+          "sha256": "sha256:4f4d492117ec26c4bacbeb81f90c9f31b71aeef4aa15b079f2bc6847241419a6",
+          "size": 2201690,
+          "file_crc32": 4107062556
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/catalog.json": {
+          "sha256": "sha256:bf885b308f21808cdff777fc8752a33e9f761288400549f1a2734548db2d9cb4",
+          "size": 3452974,
+          "file_crc32": 4072338132
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/packedassets_assets_all.bundle": {
+          "sha256": "sha256:4a1a0da9ac78bf3f0385eb38571f1498fb4ba47aff40397bc0c7d994625a7cb4",
+          "size": 11357397,
+          "file_crc32": 2611689205
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/duplicateassetisolation6_assets_all_4a1bbd777aa93f48f34767d6afbe9f14.bundle": {
+          "sha256": "sha256:ebc0595066688fee093fe9062bc7be0a6d524d857a224103ea449ccd56f6bacd",
+          "size": 17686605,
+          "file_crc32": 157408904
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx_assets_all.bundle": {
+          "sha256": "sha256:8d038846b34b782e3fe7c56ed102e0f33de9360edb2f5ff03f6e8dab4b1aca7f",
+          "size": 1609630,
+          "file_crc32": 2736011072
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx2_assets_all.bundle": {
+          "sha256": "sha256:c801b782c453cb7d7c51f4d57fcafe8118afa358442559321b026a2204e0d491",
+          "size": 4997680,
+          "file_crc32": 666723419
+        },
+        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/systemgfx_assets_all.bundle": {
+          "sha256": "sha256:ce78e96528fdbfe8139e4599a99e3e0ef1b83f61b940f4ea3d5a3adedfb3026e",
+          "size": 28357965,
+          "file_crc32": 2566045658
+        }
       }
     }
   }

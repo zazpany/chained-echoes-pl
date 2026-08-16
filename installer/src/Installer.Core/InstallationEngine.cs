@@ -373,7 +373,7 @@ public sealed class InstallationEngine
         return $"nieznany SHA-256 {snapshot.Sha256}, rozmiar {snapshot.Size}";
     }
 
-    private static void ValidateGameDirectory(string gameDirectory)
+    private void ValidateGameDirectory(string gameDirectory)
     {
         var missing = new List<string>();
         if (string.IsNullOrWhiteSpace(gameDirectory) || !Directory.Exists(gameDirectory))
@@ -382,16 +382,29 @@ public sealed class InstallationEngine
                 $"Katalog gry nie istnieje: {gameDirectory}");
         }
 
-        var executable = OperatingSystem.IsWindows()
-            ? "Chained Echoes.exe"
-            : "Chained_Echoes.x86_64";
+        var windowsLayout = package.Files.Any(file => file.RelativePath.Contains(
+            "/StandaloneWindows64/",
+            StringComparison.Ordinal));
+        var linuxLayout = package.Files.Any(file => file.RelativePath.Contains(
+            "/StandaloneLinux64/",
+            StringComparison.Ordinal));
+        if (windowsLayout == linuxLayout)
+        {
+            throw new InvalidDataException(
+                "Manifest instalatora nie wskazuje dokładnie jednej platformy docelowej.");
+        }
+
+        var executable = windowsLayout ? "Chained Echoes.exe" : "Chained_Echoes.x86_64";
         if (!File.Exists(Path.Combine(gameDirectory, executable)))
         {
             missing.Add(executable);
         }
 
-        const string database =
-            "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes";
+        var database = package.Files.SingleOrDefault(file => file.RelativePath.EndsWith(
+            "/bansheegz_database.bytes",
+            StringComparison.OrdinalIgnoreCase))?.RelativePath
+            ?? throw new InvalidDataException(
+                "Manifest instalatora nie zawiera docelowej ścieżki BGDatabase.");
         if (!File.Exists(Path.Combine(
             gameDirectory,
             database.Replace('/', Path.DirectorySeparatorChar))))

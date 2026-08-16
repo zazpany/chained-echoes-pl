@@ -46,6 +46,11 @@ wydania.
    Przeglądaj pliki lokalne** i wklej ścieżkę z paska Eksploratora.
 7. W grze pozostaw język **English**.
 
+Instalator zachowuje natywny układ depotów: Windows używa katalogu
+`Chained Echoes_Data`, natomiast Linux `Chained_Echoes_Data`.
+Każda paczka zawiera własny, siedmioplikowy zestaw payloadów dla swojej
+platformy; instalator Windows nie używa bundle'i z klienta Linux.
+
 Instalator odrzuca nieznaną wersję, wcześniejszy patch i mieszaną instalację
 przed pierwszym zapisem. Tworzy pełny backup wszystkich zastępowanych plików i
 automatycznie przywraca czystą grę, jeżeli instalacja się nie powiedzie.

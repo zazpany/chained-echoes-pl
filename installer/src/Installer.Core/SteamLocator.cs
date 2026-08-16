@@ -7,6 +7,8 @@ namespace ChainedEchoesPolishInstaller.Core;
 public static partial class SteamLocator
 {
     private const string SteamAppId = "1229240";
+    private const string WindowsDataDirectoryName = "Chained Echoes_Data";
+    private const string LinuxDataDirectoryName = "Chained_Echoes_Data";
 
     public static string? FindGameDirectory()
     {
@@ -109,7 +111,7 @@ public static partial class SteamLocator
         }
 
         problem = problemDetails.FirstOrDefault()
-            ?? "Nie znaleziono katalogu Chained_Echoes_Data w podanej ścieżce ani nad nią.";
+            ?? "Nie znaleziono katalogu danych Chained Echoes w podanej ścieżce ani nad nią.";
         problem += " Spacje są obsługiwane; nie trzeba zamieniać ich na podkreślenia.";
         return false;
     }
@@ -123,11 +125,20 @@ public static partial class SteamLocator
         }
 
         var candidates = new List<string> { value };
-        var repaired = DataDirectoryAliasRegex().Replace(value, "$1Chained_Echoes_Data");
-        repaired = GameDirectoryAliasRegex().Replace(repaired, "$1Chained Echoes");
-        if (!string.Equals(repaired, value, StringComparison.Ordinal))
+        foreach (var dataDirectoryName in new[]
+                 {
+                     WindowsDataDirectoryName,
+                     LinuxDataDirectoryName,
+                 })
         {
-            candidates.Add(repaired);
+            var repaired = DataDirectoryAliasRegex().Replace(
+                value,
+                "$1" + dataDirectoryName);
+            repaired = GameDirectoryAliasRegex().Replace(repaired, "$1Chained Echoes");
+            if (!candidates.Contains(repaired, StringComparer.Ordinal))
+            {
+                candidates.Add(repaired);
+            }
         }
 
         return candidates;
@@ -159,9 +170,7 @@ public static partial class SteamLocator
         var current = new DirectoryInfo(value);
         for (var depth = 0; current is not null && depth < 10; depth++, current = current.Parent)
         {
-            var candidate = current.Name.Equals(
-                "Chained_Echoes_Data",
-                StringComparison.OrdinalIgnoreCase)
+            var candidate = IsDataDirectoryName(current.Name)
                 ? current.Parent?.FullName
                 : current.FullName;
             if (candidate is not null && HasDataDirectory(candidate))
@@ -179,7 +188,7 @@ public static partial class SteamLocator
         }
 
         problem = "Nie znaleziono instalacji Chained Echoes (Steam App 1229240) "
-            + "ani katalogu Chained_Echoes_Data w podanej ścieżce lub bibliotece Steam.";
+            + "ani katalogu danych gry w podanej ścieżce lub bibliotece Steam.";
         return false;
     }
 
@@ -257,13 +266,18 @@ public static partial class SteamLocator
 
     public static string DetectAssetPlatform(string gameDirectory)
     {
-        var root = Path.Combine(
+        var windowsRoot = Path.Combine(
             gameDirectory,
-            "Chained_Echoes_Data",
+            WindowsDataDirectoryName,
             "StreamingAssets",
             "aa");
-        var windows = Directory.Exists(Path.Combine(root, "StandaloneWindows64"));
-        var linux = Directory.Exists(Path.Combine(root, "StandaloneLinux64"));
+        var linuxRoot = Path.Combine(
+            gameDirectory,
+            LinuxDataDirectoryName,
+            "StreamingAssets",
+            "aa");
+        var windows = Directory.Exists(Path.Combine(windowsRoot, "StandaloneWindows64"));
+        var linux = Directory.Exists(Path.Combine(linuxRoot, "StandaloneLinux64"));
         if (OperatingSystem.IsWindows() && windows)
         {
             return "windows";
@@ -290,7 +304,12 @@ public static partial class SteamLocator
     }
 
     private static bool HasDataDirectory(string path) =>
-        Directory.Exists(Path.Combine(path, "Chained_Echoes_Data"));
+        Directory.Exists(Path.Combine(path, WindowsDataDirectoryName))
+        || Directory.Exists(Path.Combine(path, LinuxDataDirectoryName));
+
+    private static bool IsDataDirectoryName(string name) =>
+        name.Equals(WindowsDataDirectoryName, StringComparison.OrdinalIgnoreCase)
+        || name.Equals(LinuxDataDirectoryName, StringComparison.OrdinalIgnoreCase);
 
     [SupportedOSPlatform("windows")]
     private static void AddRegistrySteamPath(

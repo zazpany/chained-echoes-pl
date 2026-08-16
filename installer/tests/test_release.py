@@ -20,7 +20,6 @@ SPEC.loader.exec_module(release)
 class ReleaseFactoryTests(unittest.TestCase):
     def valid_runtime_manifest(self, commit: str = "a" * 40) -> dict[str, object]:
         identity = {"sha256": "sha256:" + "1" * 64, "size": 1, "file_crc32": 1}
-        files = {relative: dict(identity) for relative in release.EXPECTED_RC_FILES}
         database = {
             "selected_fields": 5712,
             "changed_fields": 5700,
@@ -38,13 +37,54 @@ class ReleaseFactoryTests(unittest.TestCase):
             },
             "output_database": {"sha256": "sha256:" + "2" * 64},
         }
+        def platform(name: str) -> dict[str, object]:
+            files = {
+                relative: dict(identity)
+                for relative in release.EXPECTED_RC_FILES[name]
+            }
+            font_patch = (
+                "ef001-font-polish-windows-v1"
+                if name == "windows"
+                else "ef001-font-polish-v1"
+            )
+            return {
+                "files": files,
+                "clean_client": {"files": files},
+                "deterministic_rebuild": {
+                    "passed": True,
+                    "build_count": 2,
+                    "component_reports": "byte_identical",
+                    "payloads": {relative: "byte_identical" for relative in files},
+                },
+                "components": {
+                    "database": database,
+                    "dialogue-base": {
+                        "schema": "echoforge.runtime-dialogue-component/v1",
+                        "accepted_fields": 15292,
+                        "unintended_logical_changes": 0,
+                    },
+                    "dialogue-dlc": {
+                        "schema": "echoforge.runtime-dialogue-component/v1",
+                        "accepted_fields": 2554,
+                        "unintended_logical_changes": 0,
+                    },
+                    "font-runtime": {
+                        "patch_id": font_patch,
+                        "payloads": [{}, {}, {}, {}],
+                    },
+                },
+            }
         return {
             "schema": release.RUNTIME_SCHEMA,
             "runtime_id": release.RUNTIME_PREFIX + "0.8.0",
             "version": "0.8.0",
             "source": {"repository": "EchoForge", "ref": "refs/heads/main", "commit": commit},
             "installation_enabled": False,
-            "runtime_acceptance": {"required": True, "status": "pending_manual_smoke"},
+            "runtime_acceptance": {
+                "required": True,
+                "status": "pending_manual_smoke",
+                "platforms": {"linux": "user-confirmed-pass", "windows": "pending"},
+            },
             "acceptance": {
                 "accepted_checkpoints": 1807,
                 "accepted_fields": 17846,
@@ -61,17 +101,14 @@ class ReleaseFactoryTests(unittest.TestCase):
                 "passed": True,
                 "build_count": 2,
                 "component_reports": "byte_identical",
-                "payloads": {relative: "byte_identical" for relative in release.EXPECTED_RC_FILES},
+                "platforms": {"linux": "byte_identical", "windows": "byte_identical"},
+                "payload_count": 14,
             },
-            "files": files,
-            "clean_client": {"files": files},
+            "platforms": {
+                "linux": platform("linux"),
+                "windows": platform("windows"),
+            },
             "rollback": {"required": True, "catalog_install_order": "last", "catalog_restore_order": "first"},
-            "components": {
-                "database": database,
-                "dialogue-base": {"schema": "echoforge.runtime-dialogue-component/v1", "accepted_fields": 15292, "unintended_logical_changes": 0},
-                "dialogue-dlc": {"schema": "echoforge.runtime-dialogue-component/v1", "accepted_fields": 2554, "unintended_logical_changes": 0},
-                "font-runtime": {"patch_id": "ef001-font-polish-v1", "payloads": [{}, {}, {}, {}]},
-            },
         }
 
     def test_strip_sha_accepts_prefixed_and_plain_digest(self) -> None:
@@ -144,8 +181,9 @@ class ReleaseFactoryTests(unittest.TestCase):
         self.assertIn("ścieżki Windows akceptują spacje i cudzysłowy", notes)
         self.assertIn("wszystkie biblioteki skonfigurowane w Steam", notes)
         self.assertIn("manifestu App 1229240", notes)
-        self.assertIn("`Chained Echoes_Data`", notes)
-        self.assertIn("`Chained_Echoes`", notes)
+        self.assertIn("Windows używa natywnego katalogu `Chained Echoes_Data`", notes)
+        self.assertIn("Linux\n  `Chained_Echoes_Data`", notes)
+        self.assertIn("instalacja, weryfikacja i rollback", notes)
 
     def test_publish_identity_rejects_wrong_sha_or_ref(self) -> None:
         manifest = {
@@ -229,6 +267,22 @@ class ReleaseFactoryTests(unittest.TestCase):
         with self.assertRaises(release.ReleaseError):
             release.validate_runtime_release(
                 self.valid_runtime_manifest(), version="0.8.0", echoforge_commit="b" * 40
+            )
+
+    def test_runtime_gate_rejects_cross_platform_payload_substitution(self) -> None:
+        manifest = self.valid_runtime_manifest()
+        platforms = manifest["platforms"]
+        assert isinstance(platforms, dict)
+        windows = platforms["windows"]
+        assert isinstance(windows, dict)
+        files = windows["files"]
+        assert isinstance(files, dict)
+        windows_path = next(iter(files))
+        identity = files.pop(windows_path)
+        files[next(iter(release.EXPECTED_RC_FILES["linux"]))] = identity
+        with self.assertRaises(release.ReleaseError):
+            release.validate_runtime_release(
+                manifest, version="0.8.0", echoforge_commit="a" * 40
             )
 
 

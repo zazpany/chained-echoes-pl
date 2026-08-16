@@ -138,7 +138,7 @@ internal static class Program
             Console.WriteLine(problem);
             Console.WriteLine(
                 "Możesz wkleić katalog biblioteki Steam, katalog gry, plik EXE "
-                + "albo katalog Chained_Echoes_Data. Spacje i cudzysłowy są obsługiwane.");
+                + "albo katalog danych gry. Spacje i cudzysłowy są obsługiwane.");
             Console.ResetColor();
         }
     }

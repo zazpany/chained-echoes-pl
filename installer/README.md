@@ -18,8 +18,11 @@ Paczka zawiera także dowody budowy bazy, dialogów i fontów w `evidence/`.
    Steam, odczytuje `libraryfolders.vdf`, sprawdza biblioteki na wszystkich
    skonfigurowanych dyskach i używa `appmanifest_1229240.acf`, aby ustalić
    faktyczny katalog instalacji. Przy wyborze ręcznym możesz wskazać bibliotekę
-   Steam, katalog gry, plik EXE albo `Chained_Echoes_Data`; spacje i cudzysłowy
-   są obsługiwane bez przerabiania ścieżki.
+   Steam, katalog gry, plik EXE albo katalog danych gry. Windows używa
+   `Chained Echoes_Data`, a Linux `Chained_Echoes_Data`; instalator rozpoznaje
+   oba warianty bez przerabiania ścieżki.
+   ZIP-y zawierają osobne, natywne zestawy siedmiu payloadów; binaria Unity
+   z Windows i Linux nie są traktowane jako zamienne.
 5. Wybierz `1 — ZAINSTALUJ` i odpowiedz `T`.
 
 Niepodpisany EXE może wywołać ostrzeżenie SmartScreen. Najpierw porównaj jego

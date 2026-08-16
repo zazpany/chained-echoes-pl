@@ -25,10 +25,12 @@ internal sealed class InstallerTests
         Run(nameof(UnquotedCommandLinePathWithSpacesIsJoined), UnquotedCommandLinePathWithSpacesIsJoined);
         Run(nameof(SteamManifestResolvesCustomInstallDirectory), SteamManifestResolvesCustomInstallDirectory);
         Run(nameof(SteamLibraryIndexFindsGameOnAnotherDisk), SteamLibraryIndexFindsGameOnAnotherDisk);
+        Run(nameof(DepotLayoutsSelectExactPlatformRoot), DepotLayoutsSelectExactPlatformRoot);
         Run(nameof(ManifestRejectsPathTraversal), ManifestRejectsPathTraversal);
         Run(nameof(ManifestRejectsDuplicatePayload), ManifestRejectsDuplicatePayload);
         Run(nameof(ManifestRejectsWeakenedSafetyContract), ManifestRejectsWeakenedSafetyContract);
         Run(nameof(ManifestSelectsBothTargetLayouts), ManifestSelectsBothTargetLayouts);
+        Run(nameof(ManifestUsesPlatformNativePayloadIdentities), ManifestUsesPlatformNativePayloadIdentities);
         Run(nameof(ManifestRejectsUnsupportedTargetLayout), ManifestRejectsUnsupportedTargetLayout);
         Run(nameof(InstallVerifyRollbackReinstallRoundTrip), InstallVerifyRollbackReinstallRoundTrip);
         Run(nameof(MixedLayeredSourceIsRejectedBeforeBackup), MixedLayeredSourceIsRejectedBeforeBackup);
@@ -38,7 +40,7 @@ internal sealed class InstallerTests
         Run(nameof(WriteFailureRollsBackToCleanClient), WriteFailureRollsBackToCleanClient);
         Run(nameof(UnrelatedFilesRemainUntouched), UnrelatedFilesRemainUntouched);
         Run(nameof(CorruptedBackupBlocksRollback), CorruptedBackupBlocksRollback);
-        Console.WriteLine("SELF-TEST OK: 22/22");
+        Console.WriteLine("SELF-TEST OK: 24/24");
     }
 
     private void ManualPathAcceptsTheReportedSpaceInsteadOfUnderscore()
@@ -111,11 +113,28 @@ internal sealed class InstallerTests
         Assert(resolved == fixture.GameDirectory, "Steam library index resolution");
     }
 
+    private static void DepotLayoutsSelectExactPlatformRoot()
+    {
+        using var windows = SteamFixture.Create(
+            "Chained Echoes_Data",
+            "StandaloneWindows64");
+        Assert(
+            SteamLocator.DetectAssetPlatform(windows.GameDirectory) == "windows",
+            "Windows depot data directory");
+
+        using var linux = SteamFixture.Create(
+            "Chained_Echoes_Data",
+            "StandaloneLinux64");
+        Assert(
+            SteamLocator.DetectAssetPlatform(linux.GameDirectory) == "linux",
+            "Linux depot data directory");
+    }
+
     private static void ProductionPayloadMatchesContract()
     {
         var root = FindProjectRoot();
         var payloadDirectory = Path.Combine(root, "src", "Installer.Win", "Payload");
-        var package = LoadProductionPackage();
+        var package = LoadProductionPackage(StagedPlatform());
         Assert(package.Files.Count == 7, "production file count");
         foreach (var file in package.Files)
         {
@@ -134,7 +153,7 @@ internal sealed class InstallerTests
         var path = Path.Combine(
             root, "src", "Installer.Win", "Payload", "release-manifest.json");
         using var stream = File.OpenRead(path);
-        var package = ReleaseManifestLoader.Load(stream);
+        var package = ReleaseManifestLoader.Load(stream, StagedPlatform());
         Assert(package.PackageId == $"chained-echoes-polish-ef001-{package.Version}", "release manifest package id");
         Assert(!string.IsNullOrWhiteSpace(package.Version), "release manifest version");
         Assert(package.SupportedSteamBuild.All(char.IsAsciiDigit), "release manifest Steam build");
@@ -177,9 +196,34 @@ internal sealed class InstallerTests
         Assert(linux.Files.Any(file => file.RelativePath.Contains(
             "/StandaloneLinux64/", StringComparison.Ordinal)),
             "Linux target layout");
-        Assert(windows.Files.Single(file => file.PayloadName == "bansheegz_database.bytes").RelativePath
-            == linux.Files.Single(file => file.PayloadName == "bansheegz_database.bytes").RelativePath,
-            "shared database target path");
+        Assert(windows.Files.All(file => file.RelativePath.StartsWith(
+            "Chained Echoes_Data/", StringComparison.Ordinal)),
+            "Windows data directory root");
+        Assert(linux.Files.All(file => file.RelativePath.StartsWith(
+            "Chained_Echoes_Data/", StringComparison.Ordinal)),
+            "Linux data directory root");
+    }
+
+    private static void ManifestUsesPlatformNativePayloadIdentities()
+    {
+        var windows = LoadProductionPackage("windows");
+        var linux = LoadProductionPackage("linux");
+        var windowsBase = windows.Files.Single(file =>
+            file.PayloadName == "packedassets_assets_all.bundle");
+        var linuxBase = linux.Files.Single(file =>
+            file.PayloadName == "packedassets_assets_all.bundle");
+        Assert(
+            windowsBase.SourceSha256 == "cff4e658dd58dcba1f5917802d5b40c230fe1bc55780dc76cd360476e7e3395c",
+            "Windows native base dialogue identity");
+        Assert(
+            linuxBase.SourceSha256 == "4a1a0da9ac78bf3f0385eb38571f1498fb4ba47aff40397bc0c7d994625a7cb4",
+            "Linux native base dialogue identity");
+        Assert(windows.Files.Any(file => file.PayloadName.Contains(
+            "0912e6789a7419e465e2306a084992fe", StringComparison.Ordinal)),
+            "Windows native DLC bundle name");
+        Assert(linux.Files.Any(file => file.PayloadName.Contains(
+            "4a1bbd777aa93f48f34767d6afbe9f14", StringComparison.Ordinal)),
+            "Linux native DLC bundle name");
     }
 
     private static void ManifestRejectsUnsupportedTargetLayout()
@@ -316,11 +360,11 @@ internal sealed class InstallerTests
     }
 
     private const string BundleRelative =
-        "Chained_Echoes_Data/StreamingAssets/aa/StandaloneWindows64/fixture.bundle";
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/fixture.bundle";
     private const string DatabaseRelative =
-        "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes";
+        "Chained Echoes_Data/StreamingAssets/bansheegz_database.bytes";
     private const string CatalogRelative =
-        "Chained_Echoes_Data/StreamingAssets/aa/catalog.json";
+        "Chained Echoes_Data/StreamingAssets/aa/catalog.json";
 
     private TestFixture NewFixture()
     {
@@ -330,15 +374,13 @@ internal sealed class InstallerTests
         var bundle = Path.Combine(game, BundleRelative.Replace('/', Path.DirectorySeparatorChar));
         var database = Path.Combine(game, DatabaseRelative.Replace('/', Path.DirectorySeparatorChar));
         var catalog = Path.Combine(game, CatalogRelative.Replace('/', Path.DirectorySeparatorChar));
-        var sentinel = Path.Combine(game, "Chained_Echoes_Data", "unrelated.asset");
+        var sentinel = Path.Combine(game, "Chained Echoes_Data", "unrelated.asset");
         Directory.CreateDirectory(Path.GetDirectoryName(bundle)!);
         Directory.CreateDirectory(Path.GetDirectoryName(database)!);
         File.WriteAllBytes(
             Path.Combine(
                 game,
-                OperatingSystem.IsWindows()
-                    ? "Chained Echoes.exe"
-                    : "Chained_Echoes.x86_64"),
+                "Chained Echoes.exe"),
             "fixture executable"u8.ToArray());
         File.WriteAllBytes(bundle, sourceBundle);
         File.WriteAllBytes(database, sourceDatabase);
@@ -422,6 +464,12 @@ internal sealed class InstallerTests
         }
 
         throw new DirectoryNotFoundException("Nie znaleziono katalogu projektu instalatora.");
+    }
+
+    private static string StagedPlatform()
+    {
+        var value = Environment.GetEnvironmentVariable("CE_INSTALLER_TEST_PLATFORM");
+        return value is "windows" or "linux" ? value : "linux";
     }
 
     private static InstallerPackage LoadProductionPackage(string? targetPlatform = null)
@@ -576,7 +624,9 @@ internal sealed class SteamFixture : IDisposable
     public string LibraryRoot { get; }
     public string GameDirectory { get; }
 
-    public static SteamFixture Create()
+    public static SteamFixture Create(
+        string dataDirectoryName = "Chained Echoes_Data",
+        string assetPlatformDirectory = "StandaloneWindows64")
     {
         var root = Path.Combine(
             Path.GetTempPath(), "ce-polish-steam-test-" + Guid.NewGuid().ToString("N"));
@@ -585,7 +635,12 @@ internal sealed class SteamFixture : IDisposable
         var installDirectory = "Chained Echoes custom location";
         var gameDirectory = Path.GetFullPath(
             Path.Combine(steamApps, "common", installDirectory));
-        Directory.CreateDirectory(Path.Combine(gameDirectory, "Chained_Echoes_Data"));
+        Directory.CreateDirectory(Path.Combine(
+            gameDirectory,
+            dataDirectoryName,
+            "StreamingAssets",
+            "aa",
+            assetPlatformDirectory));
         File.WriteAllText(
             Path.Combine(steamApps, "appmanifest_1229240.acf"),
             $"\"AppState\"\n{{\n  \"appid\" \"1229240\"\n  \"installdir\" \"{installDirectory}\"\n}}\n");

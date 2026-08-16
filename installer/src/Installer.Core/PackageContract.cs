@@ -42,7 +42,7 @@ public sealed record InstallerPackage(
 public static class ReleaseManifestLoader
 {
     public const string SupportedSchema =
-        "echoforge.chained-echoes-cumulative-release/v2";
+        "echoforge.chained-echoes-cumulative-release/v3";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -81,49 +81,55 @@ public static class ReleaseManifestLoader
         RequireText(manifest.Game.Name, "game.name");
         RequireDigits(manifest.Game.SteamBuildId, "game.steam_build_id");
         Require(manifest.TranslationScope is not null, "Brak translation_scope.");
-        Require(manifest.Files is { Count: > 0 }, "Manifest nie zawiera plików.");
+        Require(manifest.Platforms is not null, "Manifest nie zawiera platform.");
+        Require(manifest.Platforms!.Count == 2
+            && manifest.Platforms.ContainsKey("windows")
+            && manifest.Platforms.ContainsKey("linux"),
+            "Manifest musi zawierać dokładnie platformy windows i linux.");
         ValidateInstallerContract(manifest.InstallerContract);
 
         var scope = ParseScope(manifest.TranslationScope!);
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var platformPaths = new Dictionary<string, HashSet<string>>
+        var platformFiles = new Dictionary<string, List<PackageFile>>(
+            StringComparer.Ordinal);
+        foreach (var platform in new[] { "windows", "linux" })
         {
-            ["windows"] = new(StringComparer.OrdinalIgnoreCase),
-            ["linux"] = new(StringComparer.OrdinalIgnoreCase),
-        };
-        var payloadNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var files = new List<PackageFile>(manifest.Files!.Count);
-        foreach (var entry in manifest.Files)
-        {
-            var (relativePath, targetPaths) = SelectAndValidateTargetPaths(
-                entry.TargetPaths,
-                targetPlatform);
-            RequireSafePayloadName(entry.PayloadName);
-            RequireText(entry.Role, "files[].role");
-            RequireSha256(entry.SourceSha256, "files[].source_sha256");
-            RequireSha256(entry.OutputSha256, "files[].output_sha256");
-            Require(entry.SourceSize > 0, "source_size musi być dodatni.");
-            Require(entry.OutputSize > 0, "output_size musi być dodatni.");
-            Require(paths.Add(relativePath), "Powtórzona ścieżka docelowa w manifeście.");
-            foreach (var target in targetPaths)
+            var entries = manifest.Platforms[platform].Files;
+            Require(entries is { Count: 7 },
+                $"Platforma {platform} musi zawierać dokładnie 7 plików.");
+            var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var payloadNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var files = new List<PackageFile>(entries!.Count);
+            foreach (var entry in entries)
             {
-                Require(platformPaths[target.Key].Add(target.Value),
-                    $"Powtórzona ścieżka docelowa dla platformy {target.Key}.");
+                RequireSafeRelativePath(entry.RelativePath);
+                RequirePlatformRoot(entry.RelativePath!, platform);
+                RequireSafePayloadName(entry.PayloadName);
+                RequireText(entry.Role, "files[].role");
+                RequireSha256(entry.SourceSha256, "files[].source_sha256");
+                RequireSha256(entry.OutputSha256, "files[].output_sha256");
+                Require(entry.SourceSize > 0, "source_size musi być dodatni.");
+                Require(entry.OutputSize > 0, "output_size musi być dodatni.");
+                Require(paths.Add(entry.RelativePath!),
+                    $"Powtórzona ścieżka docelowa dla platformy {platform}.");
+                Require(payloadNames.Add(entry.PayloadName!),
+                    $"Powtórzona nazwa payloadu dla platformy {platform}.");
+                files.Add(new PackageFile(
+                    entry.RelativePath!,
+                    entry.PayloadName!,
+                    entry.Role!,
+                    entry.SourceSha256!.ToLowerInvariant(),
+                    entry.SourceSize,
+                    entry.OutputSha256!.ToLowerInvariant(),
+                    entry.OutputSize,
+                    entry.InstalledLast));
             }
-            Require(payloadNames.Add(entry.PayloadName!), "Powtórzona nazwa payloadu w manifeście.");
-            files.Add(new PackageFile(
-                relativePath,
-                entry.PayloadName!,
-                entry.Role!,
-                entry.SourceSha256!.ToLowerInvariant(),
-                entry.SourceSize,
-                entry.OutputSha256!.ToLowerInvariant(),
-                entry.OutputSize,
-                entry.InstalledLast));
+
+            Require(files.Count(file => file.InstallLast) == 1,
+                $"Platforma {platform} musi mieć dokładnie jeden plik installed_last=true.");
+            platformFiles[platform] = files;
         }
 
-        Require(files.Count(file => file.InstallLast) <= 1,
-            "Co najwyżej jeden plik może mieć installed_last=true.");
+        var selectedFiles = platformFiles[targetPlatform];
 
         return new InstallerPackage(
             manifest.ReleaseId!,
@@ -132,7 +138,7 @@ public static class ReleaseManifestLoader
             manifest.Status!,
             manifest.Game.SteamBuildId!,
             scope,
-            files);
+            selectedFiles);
     }
 
     private static TranslationScope ParseScope(ReleaseTranslationScope scope)
@@ -191,22 +197,13 @@ public static class ReleaseManifestLoader
             "Niebezpieczna ścieżka docelowa w manifeście.");
     }
 
-    private static (string Selected, IReadOnlyDictionary<string, string> All)
-        SelectAndValidateTargetPaths(
-        IReadOnlyDictionary<string, string>? targetPaths,
-        string targetPlatform)
+    private static void RequirePlatformRoot(string relativePath, string platform)
     {
-        Require(targetPaths is not null, "Brak files[].target_paths.");
-        Require(targetPaths!.Count == 2
-            && targetPaths.ContainsKey("windows")
-            && targetPaths.ContainsKey("linux"),
-            "target_paths musi zawierać dokładnie windows i linux.");
-        foreach (var path in targetPaths.Values)
-        {
-            RequireSafeRelativePath(path);
-        }
-
-        return (targetPaths[targetPlatform], targetPaths);
+        var expected = platform == "windows"
+            ? "Chained Echoes_Data/"
+            : "Chained_Echoes_Data/";
+        Require(relativePath.StartsWith(expected, StringComparison.Ordinal),
+            $"Platforma {platform} musi używać katalogu {expected.TrimEnd('/')}.");
     }
 
     private static void RequireSafePayloadName(string? value)
@@ -286,11 +283,17 @@ public static class ReleaseManifestLoader
         [JsonPropertyName("translation_scope")]
         public ReleaseTranslationScope? TranslationScope { get; init; }
 
-        [JsonPropertyName("files")]
-        public List<ReleaseFile>? Files { get; init; }
+        [JsonPropertyName("platforms")]
+        public Dictionary<string, ReleasePlatform>? Platforms { get; init; }
 
         [JsonPropertyName("installer_contract")]
         public ReleaseInstallerContract? InstallerContract { get; init; }
+    }
+
+    private sealed record ReleasePlatform
+    {
+        [JsonPropertyName("files")]
+        public List<ReleaseFile>? Files { get; init; }
     }
 
     private sealed record ReleaseGame
@@ -334,8 +337,8 @@ public static class ReleaseManifestLoader
 
     private sealed record ReleaseFile
     {
-        [JsonPropertyName("target_paths")]
-        public Dictionary<string, string>? TargetPaths { get; init; }
+        [JsonPropertyName("relative_path")]
+        public string? RelativePath { get; init; }
 
         [JsonPropertyName("payload_name")]
         public string? PayloadName { get; init; }

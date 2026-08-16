@@ -20,10 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD_DIR = ROOT / "src" / "Installer.Win" / "Payload"
 EVIDENCE_DIR = ROOT / "release-evidence"
 DIST_DIR = ROOT / "dist"
-RUNTIME_SCHEMA = "echoforge.chained-echoes-runtime-release/v1"
+RUNTIME_SCHEMA = "echoforge.chained-echoes-runtime-release/v2"
 RUNTIME_PREFIX = "chained-echoes-pl-runtime-"
-EXPECTED_RC_FILES = frozenset(
-    {
+EXPECTED_RC_FILES = {
+    "linux": frozenset({
         "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes",
         "Chained_Echoes_Data/StreamingAssets/aa/catalog.json",
         "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/packedassets_assets_all.bundle",
@@ -31,14 +31,29 @@ EXPECTED_RC_FILES = frozenset(
         "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx_assets_all.bundle",
         "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/gfx2_assets_all.bundle",
         "Chained_Echoes_Data/StreamingAssets/aa/StandaloneLinux64/systemgfx_assets_all.bundle",
-    }
-)
+    }),
+    "windows": frozenset({
+        "Chained Echoes_Data/StreamingAssets/bansheegz_database.bytes",
+        "Chained Echoes_Data/StreamingAssets/aa/catalog.json",
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/packedassets_assets_all.bundle",
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/duplicateassetisolation6_assets_all_0912e6789a7419e465e2306a084992fe.bundle",
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx_assets_all.bundle",
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/gfx2_assets_all.bundle",
+        "Chained Echoes_Data/StreamingAssets/aa/StandaloneWindows64/systemgfx_assets_all.bundle",
+    }),
+}
 SHA_PREFIX = "sha256:"
 FIXED_ZIP_TIME = (2020, 1, 1, 0, 0, 0)
 
 
 class ReleaseError(RuntimeError):
     """A release contract was not satisfied."""
+
+
+class PreparedRelease:
+    def __init__(self, *, manifest: dict[str, Any], runtime_dir: Path) -> None:
+        self.manifest = manifest
+        self.runtime_dir = runtime_dir
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,12 +68,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run(command: list[str], *, cwd: Path = ROOT, capture: bool = False) -> str:
+def run(
+    command: list[str],
+    *,
+    cwd: Path = ROOT,
+    capture: bool = False,
+    environment: dict[str, str] | None = None,
+) -> str:
+    process_environment = None
+    if environment is not None:
+        process_environment = os.environ.copy()
+        process_environment.update(environment)
     result = subprocess.run(
         command,
         cwd=cwd,
         check=True,
         text=True,
+        env=process_environment,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
     )
@@ -166,9 +192,12 @@ def validate_runtime_release(
     }, "Runtime candidate nie pochodzi z dokładnego canonical EchoForge/main HEAD.")
     require(release.get("installation_enabled") is False,
             "Runtime candidate nie jest source-only.")
-    require(release.get("runtime_acceptance") == {
-        "required": True, "status": "pending_manual_smoke"},
-        "Runtime candidate nie oczekuje dokładnie ręcznego smoke testu.")
+    runtime_acceptance = release.get("runtime_acceptance", {})
+    require(runtime_acceptance.get("required") is True
+            and runtime_acceptance.get("status") == "pending_manual_smoke"
+            and runtime_acceptance.get("platforms") == {
+                "linux": "user-confirmed-pass", "windows": "pending"},
+            "Runtime candidate nie zachowuje Linux PASS i Windows PENDING.")
     acceptance = release.get("acceptance", {})
     dialogue_source = acceptance.get("dialogue_source", {})
     require(acceptance.get("accepted_checkpoints") == 1807
@@ -182,82 +211,113 @@ def validate_runtime_release(
             and re.fullmatch(r"sha256:[0-9a-f]{64}", dialogue_source["sha256"]) is not None,
             "Runtime candidate nie ma kompletnego canonical acceptance 1807/17846.")
     deterministic = release.get("deterministic_rebuild", {})
-    payload_determinism = deterministic.get("payloads")
     require(deterministic.get("passed") is True
             and deterministic.get("build_count") == 2
             and deterministic.get("component_reports") == "byte_identical"
-            and isinstance(payload_determinism, dict)
-            and set(payload_determinism) == EXPECTED_RC_FILES
-            and set(payload_determinism.values()) == {"byte_identical"},
-            "Runtime candidate nie ma podwójnego byte-identical rebuildu wszystkich payloadów.")
-    files = release.get("files")
-    clean = release.get("clean_client", {}).get("files")
-    require(isinstance(files, dict) and set(files) == EXPECTED_RC_FILES,
-            "Runtime candidate nie zawiera dokładnego 7-plikowego scope'u.")
-    require(isinstance(clean, dict) and set(clean) == EXPECTED_RC_FILES,
-            "Runtime candidate nie zawiera dokładnej tożsamości czystego klienta.")
-    for relative in EXPECTED_RC_FILES:
-        _require_identity(files[relative], f"patched {relative}")
-        _require_identity(clean[relative], f"clean {relative}")
+            and deterministic.get("platforms") == {
+                "linux": "byte_identical", "windows": "byte_identical"}
+            and deterministic.get("payload_count") == 14,
+            "Runtime candidate nie ma podwójnego byte-identical rebuildu obu platform.")
 
     rollback = release.get("rollback", {})
     require(rollback.get("required") is True
             and rollback.get("catalog_install_order") == "last"
             and rollback.get("catalog_restore_order") == "first",
             "Runtime candidate nie ma kompletnego kontraktu rollbacku.")
-    components = release.get("components")
-    require(isinstance(components, dict) and set(components) == {
-        "database", "dialogue-base", "dialogue-dlc", "font-runtime"
-    }, "Runtime candidate ma nieprawidłowy inventory komponentów.")
-    database = components["database"]
-    base_dialogue = components["dialogue-base"]
-    dlc_dialogue = components["dialogue-dlc"]
-    font_runtime = components["font-runtime"]
-    require(database.get("selected_fields") == 5712,
-            "BGDatabase nie zawiera dokładnie 5712 pól.")
-    require(database.get("selected_fields")
-            == database.get("changed_fields") + database.get("identical_fields"),
-            "selected_fields != changed_fields + identical_fields.")
-    require(database.get("source_strings_and_sha256_matched") is True,
-            "Źródła pakietów bazy nie zostały w pełni dopasowane.")
-    require(database.get("placeholder_rows_selected") == [],
-            "Baza zawiera techniczne placeholdery.")
-    require(database.get("review_required_rows") == 0,
-            "Baza zawiera wiersze review_required.")
-    require(database.get("duplicate_audit", {}).get("unresolved_conflicting_duplicate_keys") == 0,
-            "Baza zawiera nierozwiązane konflikty.")
-    require(database.get("non_target_comparison", {}).get("result") == "identical",
-            "Pola poza zakresem bazy nie są identyczne.")
-    require(database.get("structural_verification", {}).get("tables_fields_rows_unchanged")
-            is True, "Brak pełnej weryfikacji strukturalnej bazy.")
-    db_deterministic = database.get("deterministic_rebuild", {})
-    output_db = database.get("output_database", {})
-    require(db_deterministic.get("passed") is True
-            and db_deterministic.get("result") == "byte_identical"
-            and strip_sha(db_deterministic.get("second_build_sha256", ""))
-                == strip_sha(output_db.get("sha256", "")),
-            "Baza nie ma dowodu deterministycznego rebuildu.")
-    require(base_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
-            and base_dialogue.get("accepted_fields") == 15292
-            and base_dialogue.get("unintended_logical_changes") == 0,
-            "Bazowy pełny komponent dialogowy nie przeszedł bramki.")
-    require(dlc_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
-            and dlc_dialogue.get("accepted_fields") == 2554
-            and dlc_dialogue.get("unintended_logical_changes") == 0,
-            "Pełny komponent dialogów DLC nie przeszedł bramki.")
-    require(font_runtime.get("patch_id") == "ef001-font-polish-v1"
-            and len(font_runtime.get("payloads", [])) == 4,
-            "Manifest istniejącej warstwy polskich fontów jest nieprawidłowy.")
+    platforms = release.get("platforms")
+    require(isinstance(platforms, dict) and set(platforms) == {"linux", "windows"},
+            "Runtime candidate musi zawierać dokładnie linux i windows.")
+    for platform in ("linux", "windows"):
+        platform_release = platforms[platform]
+        expected_files = EXPECTED_RC_FILES[platform]
+        files = platform_release.get("files")
+        clean = platform_release.get("clean_client", {}).get("files")
+        per_platform = platform_release.get("deterministic_rebuild", {})
+        payload_determinism = per_platform.get("payloads")
+        require(isinstance(files, dict) and set(files) == expected_files,
+                f"Runtime {platform} nie zawiera dokładnego 7-plikowego scope'u.")
+        require(isinstance(clean, dict) and set(clean) == expected_files,
+                f"Runtime {platform} nie zawiera tożsamości czystego klienta.")
+        require(per_platform.get("passed") is True
+                and per_platform.get("build_count") == 2
+                and per_platform.get("component_reports") == "byte_identical"
+                and isinstance(payload_determinism, dict)
+                and set(payload_determinism) == expected_files
+                and set(payload_determinism.values()) == {"byte_identical"},
+                f"Runtime {platform} nie ma pełnego deterministycznego rebuildu.")
+        for relative in expected_files:
+            _require_identity(files[relative], f"patched {platform} {relative}")
+            _require_identity(clean[relative], f"clean {platform} {relative}")
+
+        components = platform_release.get("components")
+        require(isinstance(components, dict) and set(components) == {
+            "database", "dialogue-base", "dialogue-dlc", "font-runtime"
+        }, f"Runtime {platform} ma nieprawidłowe inventory komponentów.")
+        database = components["database"]
+        base_dialogue = components["dialogue-base"]
+        dlc_dialogue = components["dialogue-dlc"]
+        font_runtime = components["font-runtime"]
+        require(database.get("selected_fields") == 5712,
+                "BGDatabase nie zawiera dokładnie 5712 pól.")
+        require(database.get("selected_fields")
+                == database.get("changed_fields") + database.get("identical_fields"),
+                "selected_fields != changed_fields + identical_fields.")
+        require(database.get("source_strings_and_sha256_matched") is True,
+                "Źródła pakietów bazy nie zostały w pełni dopasowane.")
+        require(database.get("placeholder_rows_selected") == []
+                and database.get("review_required_rows") == 0,
+                "Baza zawiera niezaakceptowane wiersze.")
+        require(database.get("duplicate_audit", {}).get(
+                    "unresolved_conflicting_duplicate_keys") == 0,
+                "Baza zawiera nierozwiązane konflikty.")
+        require(database.get("non_target_comparison", {}).get("result") == "identical"
+                and database.get("structural_verification", {}).get(
+                    "tables_fields_rows_unchanged") is True,
+                "Baza nie przeszła bramki strukturalnej/non-target.")
+        db_deterministic = database.get("deterministic_rebuild", {})
+        output_db = database.get("output_database", {})
+        require(db_deterministic.get("passed") is True
+                and db_deterministic.get("result") == "byte_identical"
+                and strip_sha(db_deterministic.get("second_build_sha256", ""))
+                    == strip_sha(output_db.get("sha256", "")),
+                "Baza nie ma dowodu deterministycznego rebuildu.")
+        require(base_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
+                and base_dialogue.get("accepted_fields") == 15292
+                and base_dialogue.get("unintended_logical_changes") == 0,
+                f"Bazowy komponent dialogowy {platform} nie przeszedł bramki.")
+        require(dlc_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
+                and dlc_dialogue.get("accepted_fields") == 2554
+                and dlc_dialogue.get("unintended_logical_changes") == 0,
+                f"Komponent DLC {platform} nie przeszedł bramki.")
+        expected_font_patch = (
+            "ef001-font-polish-windows-v1" if platform == "windows"
+            else "ef001-font-polish-v1"
+        )
+        require(font_runtime.get("patch_id") == expected_font_patch
+                and len(font_runtime.get("payloads", [])) == 4,
+                f"Manifest fontów {platform} jest nieprawidłowy.")
 
 
-def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
+def _payload_role(payload_name: str) -> str:
+    if payload_name == "bansheegz_database.bytes":
+        return "reviewed-database-translations"
+    if payload_name == "packedassets_assets_all.bundle":
+        return "reviewed-dialogue-translations"
+    if payload_name.startswith("duplicateassetisolation6_"):
+        return "polish-fonts-and-reviewed-dlc-dialogue"
+    if payload_name == "catalog.json":
+        return "cumulative-addressables-catalog"
+    return "polish-fonts"
+
+
+def prepare_release(args: argparse.Namespace) -> PreparedRelease:
     require(re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.-]{0,39}", args.version) is not None,
             "Nieprawidłowa wersja.")
     echoforge = args.echoforge_root.resolve()
     checkpoint = require_clean_checkpoint(echoforge, repository="EchoForge")
     public_checkpoint = require_clean_checkpoint(ROOT.parent, repository="chained-echoes-pl")
     baseline = load_json(ROOT / "release-baseline.json")
-    require(baseline.get("schema") == "echoforge.chained-echoes-installer-baseline/v1",
+    require(baseline.get("schema") == "echoforge.chained-echoes-installer-baseline/v2",
             "Nieobsługiwany release-baseline.json.")
 
     require(not args.runtime_manifest.is_symlink(),
@@ -273,52 +333,59 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     require(rc_dir.name == rc.get("runtime_id"),
             "Nazwa katalogu runtime candidate różni się od runtime_id.")
     validate_runtime_release(rc, version=args.version, echoforge_commit=checkpoint)
-    db = rc["components"]["database"]
-    base_dialogue = rc["components"]["dialogue-base"]
-    dlc_dialogue = rc["components"]["dialogue-dlc"]
+    db = rc["platforms"]["linux"]["components"]["database"]
 
     selected = db["selected_fields"]
     changed = db["changed_fields"]
     identical = db["identical_fields"]
-    reset_generated_directory(PAYLOAD_DIR)
     reset_generated_directory(EVIDENCE_DIR)
-    files_by_name = {
-        entry["payload_name"]: dict(entry)
-        for entry in [*baseline.get("static_files", []), *baseline.get("dynamic_files", {}).values()]
-    }
-    require(len(files_by_name) == 7, "Baseline musi opisywać dokładnie siedem payloadów.")
-    files: list[dict[str, Any]] = []
-    for relative in sorted(EXPECTED_RC_FILES):
-        payload_name = Path(relative).name
-        require(payload_name in files_by_name, f"Baseline nie zna payloadu: {payload_name}.")
-        baseline_entry = files_by_name[payload_name]
-        require(baseline_entry["target_paths"]["linux"] == relative,
-                f"Ścieżka runtime candidate nie odpowiada baseline: {relative}.")
-        source_identity = _require_identity(rc["clean_client"]["files"][relative], relative)
-        output_identity = _require_identity(rc["files"][relative], relative)
-        payload_path = rc_dir / relative
-        verify_file(payload_path, output_identity["sha256"], output_identity["size"])
-        role = baseline_entry["role"]
-        if payload_name.startswith("duplicateassetisolation6_"):
-            role = "polish-fonts-and-reviewed-dlc-dialogue"
-        current = {
-            "payload_name": payload_name,
-            "role": role,
-            "target_paths": baseline_entry["target_paths"],
-            "source_sha256": strip_sha(source_identity["sha256"]),
-            "source_size": source_identity["size"],
-            "source_crc32": source_identity["file_crc32"],
-            "output_sha256": strip_sha(output_identity["sha256"]),
-            "output_size": output_identity["size"],
-            "output_crc32": output_identity["file_crc32"],
-        }
-        if payload_name == "bansheegz_database.bytes":
-            current["deterministic_rebuild"] = "byte-identical"
-            current["non_target_comparison"] = "identical"
-        if payload_name == "catalog.json":
-            current["installed_last"] = True
-        copy_file(payload_path, PAYLOAD_DIR / payload_name)
-        files.append(current)
+    baseline_platforms = baseline.get("platforms")
+    require(isinstance(baseline_platforms, dict)
+            and set(baseline_platforms) == {"linux", "windows"},
+            "Baseline musi opisywać dokładnie linux i windows.")
+    release_platforms: dict[str, dict[str, Any]] = {}
+    for platform in ("linux", "windows"):
+        runtime_platform = rc["platforms"][platform]
+        clean_files = runtime_platform["clean_client"]["files"]
+        patched_files = runtime_platform["files"]
+        baseline_files = baseline_platforms[platform].get("files")
+        require(isinstance(baseline_files, dict)
+                and set(baseline_files) == EXPECTED_RC_FILES[platform],
+                f"Baseline {platform} nie ma dokładnego clean-client inventory.")
+        entries: list[dict[str, Any]] = []
+        for relative in sorted(EXPECTED_RC_FILES[platform]):
+            source_identity = _require_identity(clean_files[relative], relative)
+            output_identity = _require_identity(patched_files[relative], relative)
+            expected_source = _require_identity(baseline_files[relative], relative)
+            require(strip_sha(source_identity["sha256"])
+                    == strip_sha(expected_source["sha256"])
+                    and source_identity["size"] == expected_source["size"]
+                    and source_identity["file_crc32"] == expected_source["file_crc32"],
+                    f"Clean-client identity {platform} różni się od baseline: {relative}.")
+            payload_path = rc_dir / relative
+            require(not payload_path.is_symlink(), f"Payload nie może być symlinkiem: {relative}.")
+            verify_file(payload_path, output_identity["sha256"], output_identity["size"])
+            payload_name = Path(relative).name
+            current = {
+                "relative_path": relative,
+                "payload_name": payload_name,
+                "role": _payload_role(payload_name),
+                "source_sha256": strip_sha(source_identity["sha256"]),
+                "source_size": source_identity["size"],
+                "source_crc32": source_identity["file_crc32"],
+                "output_sha256": strip_sha(output_identity["sha256"]),
+                "output_size": output_identity["size"],
+                "output_crc32": output_identity["file_crc32"],
+            }
+            if payload_name == "bansheegz_database.bytes":
+                current["deterministic_rebuild"] = "byte-identical"
+                current["non_target_comparison"] = "identical"
+            if payload_name == "catalog.json":
+                current["installed_last"] = True
+            entries.append(current)
+        require(len({entry["payload_name"] for entry in entries}) == 7,
+                f"Payload names {platform} nie są unikalne.")
+        release_platforms[platform] = {"files": entries}
 
     evidence_sources = [(rc_manifest_path, EVIDENCE_DIR / "runtime-release-manifest.json")]
     for source, target in evidence_sources:
@@ -330,7 +397,7 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     require(isinstance(per_table, dict) and sum(per_table.values()) == selected,
             "Liczniki per_table nie zgadzają się z selected_fields.")
     manifest = {
-        "schema": "echoforge.chained-echoes-cumulative-release/v2",
+        "schema": "echoforge.chained-echoes-cumulative-release/v3",
         "release_id": f"chained-echoes-polish-ef001-{args.version}",
         "version": args.version,
         "status": "windows-kubuntu-release-candidate",
@@ -359,7 +426,7 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
             "database_identical_fields": identical,
             "per_table": dict(sorted(per_table.items())),
         },
-        "files": files,
+        "platforms": release_platforms,
         "installer_contract": {
             "clean_client_only": True,
             "game_must_be_stopped": True,
@@ -372,9 +439,7 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
             "unknown_or_mixed_client_is_terminal": True,
         },
     }
-    PAYLOAD_DIR.joinpath("release-manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return manifest
+    return PreparedRelease(manifest=manifest, runtime_dir=rc_dir)
 
 
 def write_sums(package: Path) -> None:
@@ -420,24 +485,43 @@ def package_platform(version: str, runtime: str, binary_name: str) -> Path:
     return archive
 
 
-def build_packages(version: str) -> list[Path]:
+def stage_platform_payloads(prepared: PreparedRelease, platform: str) -> None:
+    require(platform in {"windows", "linux"}, f"Nieobsługiwana platforma: {platform}.")
+    reset_generated_directory(PAYLOAD_DIR)
+    entries = prepared.manifest["platforms"][platform]["files"]
+    for entry in entries:
+        source = prepared.runtime_dir / entry["relative_path"]
+        verify_file(source, entry["output_sha256"], entry["output_size"])
+        copy_file(source, PAYLOAD_DIR / entry["payload_name"])
+    PAYLOAD_DIR.joinpath("release-manifest.json").write_text(
+        json.dumps(prepared.manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def build_packages(prepared: PreparedRelease) -> list[Path]:
+    version = prepared.manifest["version"]
     for path in [DIST_DIR / "publish", DIST_DIR / "package"]:
         shutil.rmtree(path, ignore_errors=True)
     DIST_DIR.mkdir(parents=True, exist_ok=True)
-    run(["dotnet", "build", "src/Installer.Win/Installer.Win.csproj", "-c", "Release",
-         f"-p:Version={version}"])
-    run(["dotnet", "run", "--project", "tests/Installer.SelfTest/Installer.SelfTest.csproj",
-         "-c", "Release"])
     run([sys.executable, "-m", "unittest", "discover", "-s", "tests",
          "-p", "test_*.py", "-v"])
-    for runtime in ["win-x64", "linux-x64"]:
+    archives: list[Path] = []
+    for platform, runtime, binary_name in [
+        ("windows", "win-x64", "ChainedEchoesPolishInstaller.exe"),
+        ("linux", "linux-x64", "ChainedEchoesPolishInstaller"),
+    ]:
+        stage_platform_payloads(prepared, platform)
+        run(["dotnet", "build", "src/Installer.Win/Installer.Win.csproj",
+             "-c", "Release", "-t:Rebuild", f"-p:Version={version}"])
+        run(["dotnet", "run", "--project",
+             "tests/Installer.SelfTest/Installer.SelfTest.csproj", "-c", "Release"],
+            environment={"CE_INSTALLER_TEST_PLATFORM": platform})
         run(["dotnet", "publish", "src/Installer.Win/Installer.Win.csproj",
-             "-c", "Release", "-r", runtime, "--self-contained", "true",
+             "-c", "Release", "-r", runtime, "--self-contained", "true", "-t:Rebuild",
              f"-p:Version={version}", "-o", str(DIST_DIR / "publish" / runtime)])
-    return [
-        package_platform(version, "win-x64", "ChainedEchoesPolishInstaller.exe"),
-        package_platform(version, "linux-x64", "ChainedEchoesPolishInstaller"),
-    ]
+        archives.append(package_platform(version, runtime, binary_name))
+    return archives
 
 
 def write_release_notes(manifest: dict[str, Any], archives: list[Path]) -> Path:
@@ -455,7 +539,10 @@ Ulepszenia instalatora:
 - ręcznie wklejane ścieżki Windows akceptują spacje i cudzysłowy;
 - instalator automatycznie sprawdza wszystkie biblioteki skonfigurowane w Steam
   i odczytuje rzeczywisty katalog gry z manifestu App 1229240;
-- częste pomyłki `Chained Echoes_Data` i `Chained_Echoes` są poprawiane automatycznie.
+- Windows używa natywnego katalogu `Chained Echoes_Data`, a Linux
+  `Chained_Echoes_Data`; instalacja, weryfikacja i rollback zachowują ten podział.
+- każdy ZIP zawiera własny zestaw 7 natywnych payloadów; bundle'e Windows
+  i Linux nie są traktowane jako zamienne.
 
 Zakres:
 
@@ -568,11 +655,12 @@ def publish(
 def main() -> int:
     args = parse_args()
     try:
-        manifest = prepare_release(args)
-        first = build_packages(args.version)
+        prepared = prepare_release(args)
+        manifest = prepared.manifest
+        first = build_packages(prepared)
         first_hashes = {path.name: sha256(path) for path in first}
         if not args.no_determinism_check:
-            second = build_packages(args.version)
+            second = build_packages(prepared)
             second_hashes = {path.name: sha256(path) for path in second}
             require(first_hashes == second_hashes,
                     f"Paczki nie są deterministyczne: {first_hashes} != {second_hashes}")
