@@ -39,9 +39,11 @@ wydania.
 3. Pobierz najnowszy ZIP z zakładki **Releases** oraz sprawdź jego SHA-256.
 4. Rozpakuj archiwum.
 5. Uruchom `ChainedEchoesPolishInstaller.exe` i zaakceptuj pytanie UAC.
-6. Potwierdź wykryty katalog Steam i wybierz `1 — ZAINSTALUJ`. Jeżeli katalog
-   nie zostanie wykryty, skopiuj pełną ścieżkę z paska Eksploratora i wklej ją
-   bez zamieniania spacji na podkreślenia.
+6. Potwierdź wykryty katalog gry i wybierz `1 — ZAINSTALUJ`. Instalator odczytuje
+   konfigurację klienta Steam, wszystkie skonfigurowane biblioteki oraz manifest
+   Chained Echoes, więc litera dysku i nazwa katalogu biblioteki nie mają
+   znaczenia. Jeżeli Steam nie udostępni konfiguracji, użyj **Zarządzaj →
+   Przeglądaj pliki lokalne** i wklej ścieżkę z paska Eksploratora.
 7. W grze pozostaw język **English**.
 
 Instalator odrzuca nieznaną wersję, wcześniejszy patch i mieszaną instalację

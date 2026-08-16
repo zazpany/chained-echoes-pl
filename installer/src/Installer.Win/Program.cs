@@ -121,9 +121,10 @@ internal static class Program
                 "Nie wykryto Chained Echoes. Użyj --game-dir PATH.");
         }
 
-        Console.WriteLine("Skopiuj ścieżkę z paska Eksploratora — spacje i cudzysłowy są w porządku.");
-        Console.WriteLine(@"Przykład: D:\SteamLibrary\steamapps\common\Chained Echoes");
-        Console.WriteLine("Niczego nie zamieniaj ręcznie na podkreślenia.");
+        Console.WriteLine("Nie udało się automatycznie znaleźć gry w bibliotekach Steam.");
+        Console.WriteLine("W Steam kliknij: Chained Echoes → Zarządzaj → Przeglądaj pliki lokalne.");
+        Console.WriteLine("Skopiuj ścieżkę z paska otwartego Eksploratora i wklej ją tutaj.");
+        Console.WriteLine("Możesz też wkleić katalog biblioteki Steam; dysk i spacje nie mają znaczenia.");
         while (true)
         {
             Console.Write("Wklej pełną ścieżkę do katalogu „Chained Echoes”: ");
@@ -136,8 +137,8 @@ internal static class Program
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(problem);
             Console.WriteLine(
-                "Możesz wkleić katalog gry, plik EXE albo katalog Chained_Echoes_Data. "
-                + "Spacje, cudzysłowy i wariant „Chained Echoes_Data” są obsługiwane automatycznie.");
+                "Możesz wkleić katalog biblioteki Steam, katalog gry, plik EXE "
+                + "albo katalog Chained_Echoes_Data. Spacje i cudzysłowy są obsługiwane.");
             Console.ResetColor();
         }
     }

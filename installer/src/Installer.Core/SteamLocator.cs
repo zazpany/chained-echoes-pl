@@ -6,6 +6,8 @@ namespace ChainedEchoesPolishInstaller.Core;
 
 public static partial class SteamLocator
 {
+    private const string SteamAppId = "1229240";
+
     public static string? FindGameDirectory()
     {
         var steamRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -18,8 +20,17 @@ public static partial class SteamLocator
             AddLinuxSteamRoots(steamRoots);
         }
 
-        var libraries = new HashSet<string>(steamRoots, StringComparer.OrdinalIgnoreCase);
-        foreach (var steamRoot in steamRoots.ToArray())
+        return FindGameDirectoryFromSteamRoots(steamRoots);
+    }
+
+    public static string? FindGameDirectoryFromSteamRoots(IEnumerable<string> steamRoots)
+    {
+        ArgumentNullException.ThrowIfNull(steamRoots);
+        var roots = new HashSet<string>(
+            steamRoots.Where(path => !string.IsNullOrWhiteSpace(path)),
+            StringComparer.OrdinalIgnoreCase);
+        var libraries = new HashSet<string>(roots, StringComparer.OrdinalIgnoreCase);
+        foreach (var steamRoot in roots)
         {
             var libraryFile = Path.Combine(steamRoot, "steamapps", "libraryfolders.vdf");
             if (!File.Exists(libraryFile))
@@ -51,8 +62,7 @@ public static partial class SteamLocator
 
         foreach (var library in libraries)
         {
-            var candidate = Path.Combine(library, "steamapps", "common", "Chained Echoes");
-            if (TryResolveGameDirectory(candidate, out var resolved, out _))
+            if (TryResolveSteamLibrary(library, out var resolved))
             {
                 return resolved;
             }
@@ -160,11 +170,90 @@ public static partial class SteamLocator
                 problem = string.Empty;
                 return true;
             }
+
+            if (TryResolveSteamLibrary(current.FullName, out gameDirectory))
+            {
+                problem = string.Empty;
+                return true;
+            }
         }
 
-        problem = "Nie znaleziono katalogu Chained_Echoes_Data w podanej ścieżce ani nad nią.";
+        problem = "Nie znaleziono instalacji Chained Echoes (Steam App 1229240) "
+            + "ani katalogu Chained_Echoes_Data w podanej ścieżce lub bibliotece Steam.";
         return false;
     }
+
+    private static bool TryResolveSteamLibrary(string value, out string? gameDirectory)
+    {
+        gameDirectory = null;
+        string libraryRoot;
+        var directory = new DirectoryInfo(value);
+        if (directory.Name.Equals("steamapps", StringComparison.OrdinalIgnoreCase))
+        {
+            libraryRoot = directory.Parent?.FullName ?? value;
+        }
+        else if (directory.Name.Equals("common", StringComparison.OrdinalIgnoreCase)
+            && directory.Parent?.Name.Equals("steamapps", StringComparison.OrdinalIgnoreCase) is true)
+        {
+            libraryRoot = directory.Parent.Parent?.FullName ?? value;
+        }
+        else
+        {
+            libraryRoot = value;
+        }
+
+        var steamApps = Path.Combine(libraryRoot, "steamapps");
+        if (!Directory.Exists(steamApps))
+        {
+            return false;
+        }
+
+        var manifestPath = Path.Combine(steamApps, $"appmanifest_{SteamAppId}.acf");
+        if (File.Exists(manifestPath))
+        {
+            try
+            {
+                var content = File.ReadAllText(manifestPath);
+                var match = InstallDirectoryRegex().Match(content);
+                if (match.Success)
+                {
+                    var installDirectory = match.Groups["installdir"].Value.Trim();
+                    if (IsSafeInstallDirectoryName(installDirectory))
+                    {
+                        var candidate = Path.Combine(steamApps, "common", installDirectory);
+                        if (HasDataDirectory(candidate))
+                        {
+                            gameDirectory = Path.GetFullPath(candidate);
+                            return true;
+                        }
+                    }
+                }
+            }
+            catch (IOException)
+            {
+                // The caller can still use the conventional directory fallback.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // The caller can still use the conventional directory fallback.
+            }
+        }
+
+        var conventional = Path.Combine(steamApps, "common", "Chained Echoes");
+        if (!HasDataDirectory(conventional))
+        {
+            return false;
+        }
+
+        gameDirectory = Path.GetFullPath(conventional);
+        return true;
+    }
+
+    private static bool IsSafeInstallDirectoryName(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value is not "." and not ".."
+        && !Path.IsPathRooted(value)
+        && value.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]) < 0;
 
     public static string DetectAssetPlatform(string gameDirectory)
     {
@@ -240,6 +329,12 @@ public static partial class SteamLocator
         {
             roots.Add(Path.Combine(programFilesX86, "Steam"));
         }
+
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(programFiles))
+        {
+            roots.Add(Path.Combine(programFiles, "Steam"));
+        }
     }
 
     private static void AddLinuxSteamRoots(ISet<string> roots)
@@ -271,6 +366,9 @@ public static partial class SteamLocator
 
     [GeneratedRegex("\\\"path\\\"\\s+\\\"(?<path>[^\\\"]+)\\\"", RegexOptions.IgnoreCase)]
     private static partial Regex LibraryPathRegex();
+
+    [GeneratedRegex("\\\"installdir\\\"\\s+\\\"(?<installdir>[^\\\"]+)\\\"", RegexOptions.IgnoreCase)]
+    private static partial Regex InstallDirectoryRegex();
 
     [GeneratedRegex(@"(^|[\\/])Chained[ _]Echoes[ _]Data(?=$|[\\/])", RegexOptions.IgnoreCase)]
     private static partial Regex DataDirectoryAliasRegex();

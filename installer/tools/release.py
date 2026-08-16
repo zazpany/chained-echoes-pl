@@ -453,6 +453,8 @@ Kandydat wydania do ręcznego smoke testu na Windows x64 i Kubuntu x64.
 Ulepszenia instalatora:
 
 - ręcznie wklejane ścieżki Windows akceptują spacje i cudzysłowy;
+- instalator automatycznie sprawdza wszystkie biblioteki skonfigurowane w Steam
+  i odczytuje rzeczywisty katalog gry z manifestu App 1229240;
 - częste pomyłki `Chained Echoes_Data` i `Chained_Echoes` są poprawiane automatycznie.
 
 Zakres:

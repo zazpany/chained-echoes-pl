@@ -23,6 +23,8 @@ internal sealed class InstallerTests
         Run(nameof(ManualPathRepairsCommonGameAndDataDirectoryAliases), ManualPathRepairsCommonGameAndDataDirectoryAliases);
         Run(nameof(ManualPathAcceptsExplorerQuotes), ManualPathAcceptsExplorerQuotes);
         Run(nameof(UnquotedCommandLinePathWithSpacesIsJoined), UnquotedCommandLinePathWithSpacesIsJoined);
+        Run(nameof(SteamManifestResolvesCustomInstallDirectory), SteamManifestResolvesCustomInstallDirectory);
+        Run(nameof(SteamLibraryIndexFindsGameOnAnotherDisk), SteamLibraryIndexFindsGameOnAnotherDisk);
         Run(nameof(ManifestRejectsPathTraversal), ManifestRejectsPathTraversal);
         Run(nameof(ManifestRejectsDuplicatePayload), ManifestRejectsDuplicatePayload);
         Run(nameof(ManifestRejectsWeakenedSafetyContract), ManifestRejectsWeakenedSafetyContract);
@@ -36,7 +38,7 @@ internal sealed class InstallerTests
         Run(nameof(WriteFailureRollsBackToCleanClient), WriteFailureRollsBackToCleanClient);
         Run(nameof(UnrelatedFilesRemainUntouched), UnrelatedFilesRemainUntouched);
         Run(nameof(CorruptedBackupBlocksRollback), CorruptedBackupBlocksRollback);
-        Console.WriteLine("SELF-TEST OK: 20/20");
+        Console.WriteLine("SELF-TEST OK: 22/22");
     }
 
     private void ManualPathAcceptsTheReportedSpaceInsteadOfUnderscore()
@@ -78,6 +80,35 @@ internal sealed class InstallerTests
         Assert(
             parsed.GameDirectory == @"D:\Steam Library\steamapps\common\Chained Echoes",
             "unquoted CLI path");
+    }
+
+    private static void SteamManifestResolvesCustomInstallDirectory()
+    {
+        using var fixture = SteamFixture.Create();
+        var misleadingExample = Path.Combine(
+            fixture.LibraryRoot, "steamapps", "common", "Chained Echoes");
+        Assert(
+            SteamLocator.TryResolveGameDirectory(
+                misleadingExample,
+                out var resolved,
+                out var problem),
+            $"Steam manifest path resolution failed: {problem}");
+        Assert(resolved == fixture.GameDirectory, "Steam manifest installdir resolution");
+    }
+
+    private static void SteamLibraryIndexFindsGameOnAnotherDisk()
+    {
+        using var fixture = SteamFixture.Create();
+        var steamRoot = Path.Combine(fixture.Root, "Steam client");
+        var steamApps = Path.Combine(steamRoot, "steamapps");
+        Directory.CreateDirectory(steamApps);
+        var escapedLibrary = fixture.LibraryRoot.Replace(@"\", @"\\");
+        File.WriteAllText(
+            Path.Combine(steamApps, "libraryfolders.vdf"),
+            $"\"libraryfolders\"\n{{\n  \"0\"\n  {{\n    \"path\" \"{escapedLibrary}\"\n  }}\n}}\n");
+
+        var resolved = SteamLocator.FindGameDirectoryFromSteamRoots([steamRoot]);
+        Assert(resolved == fixture.GameDirectory, "Steam library index resolution");
     }
 
     private static void ProductionPayloadMatchesContract()
@@ -522,6 +553,44 @@ internal sealed class TestFixture : IDisposable
     public string SentinelPath { get; }
     public IPayloadProvider Payloads { get; }
     public string BackupDirectory => Path.Combine(GameDirectory, ".fixture-package-backup");
+
+    public void Dispose()
+    {
+        if (Directory.Exists(Root))
+        {
+            Directory.Delete(Root, recursive: true);
+        }
+    }
+}
+
+internal sealed class SteamFixture : IDisposable
+{
+    private SteamFixture(string root, string libraryRoot, string gameDirectory)
+    {
+        Root = root;
+        LibraryRoot = libraryRoot;
+        GameDirectory = gameDirectory;
+    }
+
+    public string Root { get; }
+    public string LibraryRoot { get; }
+    public string GameDirectory { get; }
+
+    public static SteamFixture Create()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(), "ce-polish-steam-test-" + Guid.NewGuid().ToString("N"));
+        var libraryRoot = Path.Combine(root, "Games on another disk", "My Steam Library");
+        var steamApps = Path.Combine(libraryRoot, "steamapps");
+        var installDirectory = "Chained Echoes custom location";
+        var gameDirectory = Path.GetFullPath(
+            Path.Combine(steamApps, "common", installDirectory));
+        Directory.CreateDirectory(Path.Combine(gameDirectory, "Chained_Echoes_Data"));
+        File.WriteAllText(
+            Path.Combine(steamApps, "appmanifest_1229240.acf"),
+            $"\"AppState\"\n{{\n  \"appid\" \"1229240\"\n  \"installdir\" \"{installDirectory}\"\n}}\n");
+        return new SteamFixture(root, libraryRoot, gameDirectory);
+    }
 
     public void Dispose()
     {

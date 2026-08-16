@@ -142,6 +142,8 @@ class ReleaseFactoryTests(unittest.TestCase):
                     encoding="utf-8"
                 )
         self.assertIn("ścieżki Windows akceptują spacje i cudzysłowy", notes)
+        self.assertIn("wszystkie biblioteki skonfigurowane w Steam", notes)
+        self.assertIn("manifestu App 1229240", notes)
         self.assertIn("`Chained Echoes_Data`", notes)
         self.assertIn("`Chained_Echoes`", notes)
 
