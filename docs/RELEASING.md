@@ -5,8 +5,9 @@ Nie publikujemy incremental patchy zależnych od wcześniejszej instalacji.
 
 ## Jedno polecenie
 
-Wszystkie payloady są pobierane z jawnie wskazanego, podwójnie zbudowanego,
-siedmioplikowego versioned runtime candidate w czystym `EchoForge/main`.
+Wszystkie payloady są pobierane z jawnie wskazanego, podwójnie zbudowanego
+versioned runtime candidate w czystym `EchoForge/main`: po siedem natywnych
+plików dla Windows i Linux.
 Fabryka nie ma domyślnego ani awaryjnego kandydata i nie wyszukuje ND-7.
 
 ```bash
@@ -23,8 +24,8 @@ Generator:
 2. wymaga, aby runtime manifest wskazywał dokładny bieżący commit EchoForge;
 3. wymaga kompletnego acceptance `1807 / 17846 / 0`, sprawdza dowody
    dopasowania źródeł, strukturę bazy, pola poza zakresem i byte-identical rebuild;
-4. waliduje SHA-256, CRC32 i rozmiary wszystkich siedmiu plików;
-5. generuje jeden ścisły manifest dla Windows oraz Kubuntu;
+4. waliduje SHA-256, CRC32 i rozmiary siedmiu plików każdej platformy;
+5. generuje jeden ścisły manifest z osobnym inventory Windows i Kubuntu;
 6. uruchamia testy C# i Pythona;
 7. buduje self-contained `win-x64` i `linux-x64`;
 8. tworzy deterministyczne ZIP-y i powtarza build dla porównania bajtowego;
@@ -52,10 +53,25 @@ Przed publikacją:
 5. sprawdź, że exact source SHA jest już na `origin/main`;
 6. nie commituj payloadów, plików gry, evidence ani `dist/`.
 
-Pierwsze wydanie pozostaje pre-release do czasu ręcznych testów:
+Wydanie pozostaje pre-release do czasu ręcznych testów:
 
 - Windows: install → verify → uruchomienie gry → uninstall → czysty klient;
 - Kubuntu: install → verify → uruchomienie gry → uninstall → czysty klient;
 - ponowna instalacja tego samego RC i finalny smoke test rozgrywki.
+
+Po potwierdzeniu obu platform promuj istniejący release bez przebudowy,
+zmiany taga lub podmiany assets:
+
+```bash
+gh release edit vVERSION \
+  --repo zazpany/chained-echoes-pl \
+  --prerelease=false
+```
+
+Po operacji odczytaj release ponownie i potwierdź `prerelease=false`, exact
+target taga oraz niezmienione nazwy i rozmiary wszystkich assets. Status stable
+dotyczy bramki technicznej; dopóki projekt nie przejdzie osobnego pełnego QA
+językowego i redakcji, notatki wydania i README muszą jasno zachowywać status
+**pełne tłumaczenie przed QA i redakcją**.
 
 Gotowe ZIP-y i EXE/ELF są assets GitHub Releases, nigdy historią Git.

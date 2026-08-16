@@ -12,10 +12,18 @@ trzeba pobierać kodu repozytorium.
 
 ## Status
 
-Pierwsze wydania Windows i Kubuntu są publikowane jako oznaczony **pre-release**
-do smoke testu przez odbiorcę. Pobieraj wyłącznie właściwy asset ZIP z zakładki Releases,
-sprawdź dołączony SHA-256 i zgłoś wynik według
-[checklisty smoke testu](docs/SMOKE-TEST.md).
+Aktualnym wydaniem jest **[v0.8.3](https://github.com/zazpany/chained-echoes-pl/releases/tag/v0.8.3)**.
+Instalatory Windows i Linux oraz ich rollback przeszły testy, dlatego wydanie
+ma status techniczny **stable**.
+
+Wersja 0.8.3 zawiera **pełne polskie tłumaczenie** aktualnego zakresu EF-001:
+dialogi oraz objęte wydaniem teksty interfejsu, menu, przedmiotów i umiejętności.
+Jest to jednak wydanie **przed całościowym QA językowym i redakcją**. W tekście
+mogą nadal występować literówki, niezręczne sformułowania albo niespójności,
+które będą poprawiane w kolejnych wersjach.
+
+Pobieraj wyłącznie właściwy asset ZIP z zakładki Releases i sprawdź
+dołączony SHA-256.
 
 ## Co zawiera patch
 
@@ -73,8 +81,9 @@ przywróć czyste pliki przez Steam.
 4. Potwierdź wykrytą bibliotekę Steam, wybierz `1`, a w grze pozostaw język
    **English**.
 
-Wydania Windows i Kubuntu zawierają te same zweryfikowane payloady. Instalator
-kieruje bundle odpowiednio do `StandaloneWindows64` lub `StandaloneLinux64`.
+Wydania Windows i Kubuntu zawierają osobne, zweryfikowane zestawy siedmiu
+payloadów, zbudowane odpowiednio dla `StandaloneWindows64` i
+`StandaloneLinux64`.
 
 ## Zgłaszanie problemów
 

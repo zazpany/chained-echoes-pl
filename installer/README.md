@@ -8,6 +8,11 @@ wersję gry i sumy plików instalator odczytuje z osadzonego `MANIFEST.json`.
 Użytkownik nie musi instalować Pythona ani .NET i nie kopiuje plików ręcznie.
 Paczka zawiera także dowody budowy bazy, dialogów i fontów w `evidence/`.
 
+Aktualna wersja 0.8.3 jest technicznie stabilna i zawiera pełne tłumaczenie
+zakresu EF-001, ale pozostaje wydaniem przed całościowym QA językowym i
+redakcją. Zgłoszenia literówek, niezręcznych sformułowań i niespójności są
+nadal oczekiwane.
+
 ## Instalacja na Windows
 
 1. W Steam: Chained Echoes → **Właściwości** → **Zainstalowane pliki** →
@@ -41,8 +46,8 @@ SHA-256 z `SHA256SUMS.txt`, potem użyj **Więcej informacji → Uruchom mimo to
 4. Potwierdź automatycznie wykrytą bibliotekę Steam i wybierz `1`.
 
 Nie używaj `sudo`. Instalator obsługuje zwykłą instalację Steam oraz typowe
-ścieżki pakietu Flatpak. Te same zweryfikowane payloady są kierowane do
-`StandaloneWindows64` na Windows i `StandaloneLinux64` na Kubuntu.
+ścieżki pakietu Flatpak. ZIP-y Windows i Linux zawierają osobne, natywne
+zestawy siedmiu payloadów dla `StandaloneWindows64` i `StandaloneLinux64`.
 
 W grze pozostaw język **English** — patch zastępuje zatwierdzone pola tej
 wersji językowej polskimi wartościami.
@@ -108,4 +113,6 @@ deterministyczne ZIP-y i sprawdza drugi byte-identical rebuild.
 Dodanie `--publish --repo zazpany/chained-echoes-pl` publikuje oba ZIP-y i sumy
 SHA-256 jako GitHub prerelease, ale dopiero po potwierdzeniu, że tag, `HEAD` i
 `origin/main` wskazują exact public source SHA zapisane w manifeście. Publikacja
-nadal wymaga ręcznego smoke testu na Windows, Kubuntu i w grze.
+nadal wymaga ręcznego smoke testu na Windows, Kubuntu i w grze. Istniejący
+prerelease można promować do stable dopiero po potwierdzeniu obu platform;
+promocja nie przebudowuje ani nie podmienia taga lub assets.
