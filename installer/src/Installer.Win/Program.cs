@@ -18,7 +18,7 @@ internal static class Program
             using var manifest = payloads.OpenRead("release-manifest.json");
             var package = ReleaseManifestLoader.Load(manifest);
             PrintHeader(package);
-            var parsed = ParseArguments(args);
+            var parsed = InstallerArguments.Parse(args);
             var gameDirectory = parsed.GameDirectory is null
                 ? ResolveGameDirectory(interactive)
                 : SteamLocator.ResolveGameDirectory(parsed.GameDirectory);
@@ -103,30 +103,6 @@ internal static class Program
         Console.WriteLine();
     }
 
-    private static (string? Action, string? GameDirectory) ParseArguments(string[] args)
-    {
-        string? action = null;
-        string? gameDirectory = null;
-        for (var index = 0; index < args.Length; index++)
-        {
-            if (args[index] == "--game-dir" && index + 1 < args.Length)
-            {
-                gameDirectory = args[++index];
-            }
-            else if (args[index] is "install" or "verify" or "rollback" or "uninstall")
-            {
-                action = args[index];
-            }
-            else
-            {
-                throw new ArgumentException(
-                    "Użycie: ChainedEchoesPolishInstaller [install|verify|uninstall] [--game-dir PATH]");
-            }
-        }
-
-        return (action, gameDirectory);
-    }
-
     private static string ResolveGameDirectory(bool interactive)
     {
         var detected = SteamLocator.FindGameDirectory();
@@ -145,6 +121,9 @@ internal static class Program
                 "Nie wykryto Chained Echoes. Użyj --game-dir PATH.");
         }
 
+        Console.WriteLine("Skopiuj ścieżkę z paska Eksploratora — spacje i cudzysłowy są w porządku.");
+        Console.WriteLine(@"Przykład: D:\SteamLibrary\steamapps\common\Chained Echoes");
+        Console.WriteLine("Niczego nie zamieniaj ręcznie na podkreślenia.");
         while (true)
         {
             Console.Write("Wklej pełną ścieżkę do katalogu „Chained Echoes”: ");
@@ -156,7 +135,9 @@ internal static class Program
 
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine(problem);
-            Console.WriteLine("Możesz wkleić katalog „Chained Echoes”, plik EXE albo katalog Chained_Echoes_Data.");
+            Console.WriteLine(
+                "Możesz wkleić katalog gry, plik EXE albo katalog Chained_Echoes_Data. "
+                + "Spacje, cudzysłowy i wariant „Chained Echoes_Data” są obsługiwane automatycznie.");
             Console.ResetColor();
         }
     }

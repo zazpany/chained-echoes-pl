@@ -19,6 +19,10 @@ internal sealed class InstallerTests
         Run(nameof(ProductionPayloadMatchesContract), ProductionPayloadMatchesContract);
         Run(nameof(ReleaseManifestMatchesContract), ReleaseManifestMatchesContract);
         Run(nameof(ReleaseEvidenceMatchesManifest), ReleaseEvidenceMatchesManifest);
+        Run(nameof(ManualPathAcceptsTheReportedSpaceInsteadOfUnderscore), ManualPathAcceptsTheReportedSpaceInsteadOfUnderscore);
+        Run(nameof(ManualPathRepairsCommonGameAndDataDirectoryAliases), ManualPathRepairsCommonGameAndDataDirectoryAliases);
+        Run(nameof(ManualPathAcceptsExplorerQuotes), ManualPathAcceptsExplorerQuotes);
+        Run(nameof(UnquotedCommandLinePathWithSpacesIsJoined), UnquotedCommandLinePathWithSpacesIsJoined);
         Run(nameof(ManifestRejectsPathTraversal), ManifestRejectsPathTraversal);
         Run(nameof(ManifestRejectsDuplicatePayload), ManifestRejectsDuplicatePayload);
         Run(nameof(ManifestRejectsWeakenedSafetyContract), ManifestRejectsWeakenedSafetyContract);
@@ -32,7 +36,48 @@ internal sealed class InstallerTests
         Run(nameof(WriteFailureRollsBackToCleanClient), WriteFailureRollsBackToCleanClient);
         Run(nameof(UnrelatedFilesRemainUntouched), UnrelatedFilesRemainUntouched);
         Run(nameof(CorruptedBackupBlocksRollback), CorruptedBackupBlocksRollback);
-        Console.WriteLine("SELF-TEST OK: 16/16");
+        Console.WriteLine("SELF-TEST OK: 20/20");
+    }
+
+    private void ManualPathAcceptsTheReportedSpaceInsteadOfUnderscore()
+    {
+        using var fixture = NewFixture();
+        var reportedInput = Path.Combine(fixture.GameDirectory, "Chained Echoes_Data");
+        Assert(
+            SteamLocator.TryResolveGameDirectory(reportedInput, out var resolved, out var problem),
+            $"reported pasted path was rejected: {problem}");
+        Assert(resolved == Path.GetFullPath(fixture.GameDirectory), "reported path resolution");
+    }
+
+    private void ManualPathRepairsCommonGameAndDataDirectoryAliases()
+    {
+        using var fixture = NewFixture();
+        var common = Directory.GetParent(fixture.GameDirectory)!.FullName;
+        var mistaken = Path.Combine(common, "Chained_Echoes", "Chained Echoes_Data");
+        Assert(
+            SteamLocator.TryResolveGameDirectory(mistaken, out var resolved, out var problem),
+            $"friendly aliases were rejected: {problem}");
+        Assert(resolved == Path.GetFullPath(fixture.GameDirectory), "friendly alias resolution");
+    }
+
+    private void ManualPathAcceptsExplorerQuotes()
+    {
+        using var fixture = NewFixture();
+        var copiedFromExplorer = $"“{fixture.GameDirectory}”";
+        Assert(
+            SteamLocator.TryResolveGameDirectory(copiedFromExplorer, out var resolved, out var problem),
+            $"Explorer-quoted path was rejected: {problem}");
+        Assert(resolved == Path.GetFullPath(fixture.GameDirectory), "Explorer quote resolution");
+    }
+
+    private static void UnquotedCommandLinePathWithSpacesIsJoined()
+    {
+        var parsed = InstallerArguments.Parse(
+            ["install", "--game-dir", @"D:\Steam", @"Library\steamapps\common\Chained", "Echoes"]);
+        Assert(parsed.Action == "install", "unquoted CLI action");
+        Assert(
+            parsed.GameDirectory == @"D:\Steam Library\steamapps\common\Chained Echoes",
+            "unquoted CLI path");
     }
 
     private static void ProductionPayloadMatchesContract()

@@ -2,9 +2,9 @@ using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
-namespace ChainedEchoesPolishInstaller;
+namespace ChainedEchoesPolishInstaller.Core;
 
-internal static partial class SteamLocator
+public static partial class SteamLocator
 {
     public static string? FindGameDirectory()
     {
@@ -83,7 +83,52 @@ internal static partial class SteamLocator
             return false;
         }
 
-        var value = input.Trim().Trim('"', '\'');
+        var problemDetails = new List<string>();
+        foreach (var pastedValue in PastedPathCandidates(input))
+        {
+            if (TryResolveCandidate(pastedValue, out gameDirectory, out var candidateProblem))
+            {
+                problem = string.Empty;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(candidateProblem))
+            {
+                problemDetails.Add(candidateProblem);
+            }
+        }
+
+        problem = problemDetails.FirstOrDefault()
+            ?? "Nie znaleziono katalogu Chained_Echoes_Data w podanej ścieżce ani nad nią.";
+        problem += " Spacje są obsługiwane; nie trzeba zamieniać ich na podkreślenia.";
+        return false;
+    }
+
+    internal static IReadOnlyList<string> PastedPathCandidates(string input)
+    {
+        var value = input.Trim().Trim('"', '\'', '“', '”', '„', '‘', '’').Trim();
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsFile)
+        {
+            value = uri.LocalPath;
+        }
+
+        var candidates = new List<string> { value };
+        var repaired = DataDirectoryAliasRegex().Replace(value, "$1Chained_Echoes_Data");
+        repaired = GameDirectoryAliasRegex().Replace(repaired, "$1Chained Echoes");
+        if (!string.Equals(repaired, value, StringComparison.Ordinal))
+        {
+            candidates.Add(repaired);
+        }
+
+        return candidates;
+    }
+
+    private static bool TryResolveCandidate(
+        string value,
+        out string? gameDirectory,
+        out string problem)
+    {
+        gameDirectory = null;
         try
         {
             value = Path.GetFullPath(value);
@@ -226,4 +271,10 @@ internal static partial class SteamLocator
 
     [GeneratedRegex("\\\"path\\\"\\s+\\\"(?<path>[^\\\"]+)\\\"", RegexOptions.IgnoreCase)]
     private static partial Regex LibraryPathRegex();
+
+    [GeneratedRegex(@"(^|[\\/])Chained[ _]Echoes[ _]Data(?=$|[\\/])", RegexOptions.IgnoreCase)]
+    private static partial Regex DataDirectoryAliasRegex();
+
+    [GeneratedRegex(@"(^|[\\/])Chained_Echoes(?=$|[\\/])", RegexOptions.IgnoreCase)]
+    private static partial Regex GameDirectoryAliasRegex();
 }
