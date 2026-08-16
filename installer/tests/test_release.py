@@ -120,6 +120,31 @@ class ReleaseFactoryTests(unittest.TestCase):
                 self.assertEqual((info.external_attr >> 16) & 0o777, 0o755)
                 self.assertEqual(info.date_time, release.FIXED_ZIP_TIME)
 
+    def test_release_notes_describe_forgiving_windows_path_input(self) -> None:
+        manifest = {
+            "version": "0.8.1",
+            "game": {"steam_build_id": "21147362"},
+            "translation_scope": {
+                "dialogue_conversations": "pełny canonical EF-001R",
+                "dialogue_fields": 17846,
+                "database_selected_fields": 5712,
+                "database_changed_fields": 5303,
+                "database_identical_fields": 409,
+                "per_table": {"tr_MENU": 986},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = root / "installer.zip"
+            archive.write_bytes(b"zip")
+            with mock.patch.object(release, "DIST_DIR", root):
+                notes = release.write_release_notes(manifest, [archive]).read_text(
+                    encoding="utf-8"
+                )
+        self.assertIn("ścieżki Windows akceptują spacje i cudzysłowy", notes)
+        self.assertIn("`Chained Echoes_Data`", notes)
+        self.assertIn("`Chained_Echoes`", notes)
+
     def test_publish_identity_rejects_wrong_sha_or_ref(self) -> None:
         manifest = {
             "source_checkpoint": {

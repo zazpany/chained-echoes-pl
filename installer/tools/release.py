@@ -450,6 +450,11 @@ def write_release_notes(manifest: dict[str, Any], archives: list[Path]) -> Path:
 
 Kandydat wydania do ręcznego smoke testu na Windows x64 i Kubuntu x64.
 
+Ulepszenia instalatora:
+
+- ręcznie wklejane ścieżki Windows akceptują spacje i cudzysłowy;
+- częste pomyłki `Chained Echoes_Data` i `Chained_Echoes` są poprawiane automatycznie.
+
 Zakres:
 
 - dialogi {scope['dialogue_conversations']}: {scope['dialogue_fields']} pól;
