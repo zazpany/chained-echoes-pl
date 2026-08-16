@@ -81,20 +81,24 @@ Kubuntu:
 ## Jedno polecenie dla opiekuna wydania
 
 Wymagane są Python 3 i .NET SDK 8. Fabryka pobiera wszystkie siedem payloadów
-z podwójnie zbudowanego i zweryfikowanego kandydata ND-7 w ignorowanym
-`var/runtime-patches/`. Binaria gry pozostają poza historią publicznego repo.
+wyłącznie z jawnie wskazanego, podwójnie zbudowanego versioned runtime candidate
+utworzonego z czystego `EchoForge/main`. Binaria gry pozostają poza historią
+publicznego repo.
 
 ```bash
 python3 tools/release.py \
   --version VERSION \
-  --echoforge-root /ścieżka/do/czystego/worktree/EchoForge
+  --echoforge-root /ścieżka/do/czystego/EchoForge \
+  --runtime-manifest /ścieżka/do/czystego/EchoForge/var/runtime-patches/chained-echoes-pl-runtime-VERSION/manifest.json
 ```
 
-Polecenie wymaga czystego checkpointu EchoForge, pobiera dokładny siedmioplikowy
-RC ND-7, waliduje bazę, dialogi, DLC, fonty i katalog, generuje manifest i evidence,
+Polecenie wymaga czystych canonical `main` obu repozytoriów, waliduje exact
+EchoForge source SHA, pełne acceptance, bazę, dialogi, DLC, fonty i katalog,
+generuje manifest i evidence,
 uruchamia self-testy, buduje oba self-contained instalatory, tworzy
 deterministyczne ZIP-y i sprawdza drugi byte-identical rebuild.
 
 Dodanie `--publish --repo zazpany/chained-echoes-pl` publikuje oba ZIP-y i sumy
-SHA-256 jako GitHub prerelease. Publikacja nadal wymaga ręcznego smoke testu na
-Windows, Kubuntu i w grze.
+SHA-256 jako GitHub prerelease, ale dopiero po potwierdzeniu, że tag, `HEAD` i
+`origin/main` wskazują exact public source SHA zapisane w manifeście. Publikacja
+nadal wymaga ręcznego smoke testu na Windows, Kubuntu i w grze.

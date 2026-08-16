@@ -82,6 +82,10 @@ Nie dołączaj plików gry, save'ów ani całych logów zawierających dane kont
 ## Dla maintainerów
 
 Źródła wspólnego instalatora i fabryki wydań są w [installer/](installer/).
+To repozytorium jest kanonicznym źródłem wyłącznie instalatora Windows/Linux,
+publicznych notatek i publikacji GitHub. Tłumaczenia, acceptance stores,
+build artefaktów runtime i clean-source identities należą do canonical
+`EchoForge/main`; nie są duplikowane tutaj.
 Procedura publikowania kolejnych ZIP-ów znajduje się w
 [docs/RELEASING.md](docs/RELEASING.md). Binariów, payloadów i manifestów
 roboczych nie commitujemy — trafiają wyłącznie do assets GitHub Releases.

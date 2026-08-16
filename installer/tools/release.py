@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PAYLOAD_DIR = ROOT / "src" / "Installer.Win" / "Payload"
 EVIDENCE_DIR = ROOT / "release-evidence"
 DIST_DIR = ROOT / "dist"
-ND7_PATCH_DIR = Path("var/runtime-patches/ef001-nd7-rc1")
-DATABASE_INVENTORY = Path("var/runtime-patches/ef001-database-reviewed-v1/inventory.json")
+RUNTIME_SCHEMA = "echoforge.chained-echoes-runtime-release/v1"
+RUNTIME_PREFIX = "chained-echoes-pl-runtime-"
 EXPECTED_RC_FILES = frozenset(
     {
         "Chained_Echoes_Data/StreamingAssets/bansheegz_database.bytes",
@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
         description="Buduje zweryfikowane instalatory Windows i Kubuntu z jednego manifestu.")
     parser.add_argument("--version", required=True, help="Wersja, np. 0.2.0-rc.2")
     parser.add_argument("--echoforge-root", type=Path, required=True)
-    parser.add_argument("--skip-prepare", action="store_true")
+    parser.add_argument("--runtime-manifest", type=Path, required=True)
     parser.add_argument("--no-determinism-check", action="store_true")
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--repo", default="zazpany/chained-echoes-pl")
@@ -108,12 +108,24 @@ def copy_file(source: Path, target: Path) -> None:
     os.replace(temporary, target)
 
 
-def require_clean_checkpoint(root: Path) -> str:
+def reset_generated_directory(path: Path) -> None:
+    resolved = path.resolve(strict=False)
+    require(resolved.parent.is_relative_to(ROOT.resolve()),
+            f"Odmowa resetu katalogu poza installer/: {path}")
+    require(not path.is_symlink(), f"Odmowa resetu dowiązania: {path}")
+    if path.exists():
+        shutil.rmtree(path)
+    path.mkdir(parents=True)
+
+
+def require_clean_checkpoint(root: Path, *, repository: str) -> str:
     require((root / ".git").exists() or run(
         ["git", "rev-parse", "--is-inside-work-tree"], cwd=root, capture=True) == "true",
         f"To nie jest worktree Git: {root}")
     status = run(["git", "status", "--porcelain"], cwd=root, capture=True)
-    require(not status, "EchoForge ma niezacommitowane zmiany; wydanie zostało zatrzymane.")
+    require(not status, f"{repository} ma niezacommitowane zmiany; wydanie zostało zatrzymane.")
+    branch = run(["git", "symbolic-ref", "--short", "HEAD"], cwd=root, capture=True)
+    require(branch == "main", f"{repository} release source musi być canonical main.")
     return run(["git", "rev-parse", "HEAD"], cwd=root, capture=True)
 
 
@@ -134,27 +146,41 @@ def _require_identity(value: object, label: str) -> dict[str, Any]:
     return identity
 
 
-def validate_nd7_release(
+def validate_runtime_release(
     release: dict[str, Any],
-    database: dict[str, Any],
-    base_dialogue: dict[str, Any],
-    dlc_dialogue: dict[str, Any],
-    font_runtime: dict[str, Any],
-    inventory: dict[str, Any],
+    *,
+    version: str,
+    echoforge_commit: str,
 ) -> None:
-    require(release.get("schema") == "echoforge.nd7-release-candidate/v1alpha1",
-            "Nieobsługiwany manifest ND-7.")
-    require(release.get("patch_id") == "ef001-nd7-rc1", "Nieprawidłowy patch_id ND-7.")
+    require(release.get("schema") == RUNTIME_SCHEMA,
+            "Nieobsługiwany versioned runtime manifest.")
+    require(release.get("runtime_id") == RUNTIME_PREFIX + version,
+            "Runtime manifest nie odpowiada jawnej wersji instalatora.")
+    require(release.get("version") == version,
+            "Wersja runtime manifestu i instalatora jest różna.")
+    source = release.get("source", {})
+    require(source == {
+        "repository": "EchoForge",
+        "ref": "refs/heads/main",
+        "commit": echoforge_commit,
+    }, "Runtime candidate nie pochodzi z dokładnego canonical EchoForge/main HEAD.")
     require(release.get("installation_enabled") is False,
-            "Kandydat ND-7 nie jest source-only.")
+            "Runtime candidate nie jest source-only.")
     require(release.get("runtime_acceptance") == {
         "required": True, "status": "pending_manual_smoke"},
-        "ND-7 nie oczekuje dokładnie ręcznego smoke testu.")
-    preflight = release.get("preflight", {})
-    require(preflight.get("status") == "ready_for_build"
-            and preflight.get("checks_passed") == 9
-            and preflight.get("blockers") == [],
-            "Preflight ND-7 nie przeszedł 9/9 bramek.")
+        "Runtime candidate nie oczekuje dokładnie ręcznego smoke testu.")
+    acceptance = release.get("acceptance", {})
+    dialogue_source = acceptance.get("dialogue_source", {})
+    require(acceptance.get("accepted_checkpoints") == 1807
+            and acceptance.get("accepted_fields") == 17846
+            and acceptance.get("remaining_checkpoints") == 0
+            and acceptance.get("excluded_raw_records") == 22
+            and isinstance(acceptance.get("sha256"), str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", acceptance["sha256"]) is not None
+            and dialogue_source.get("records") == 17868
+            and isinstance(dialogue_source.get("sha256"), str)
+            and re.fullmatch(r"sha256:[0-9a-f]{64}", dialogue_source["sha256"]) is not None,
+            "Runtime candidate nie ma kompletnego canonical acceptance 1807/17846.")
     deterministic = release.get("deterministic_rebuild", {})
     payload_determinism = deterministic.get("payloads")
     require(deterministic.get("passed") is True
@@ -163,19 +189,32 @@ def validate_nd7_release(
             and isinstance(payload_determinism, dict)
             and set(payload_determinism) == EXPECTED_RC_FILES
             and set(payload_determinism.values()) == {"byte_identical"},
-            "ND-7 nie ma podwójnego byte-identical rebuildu wszystkich payloadów.")
+            "Runtime candidate nie ma podwójnego byte-identical rebuildu wszystkich payloadów.")
     files = release.get("files")
     clean = release.get("clean_client", {}).get("files")
     require(isinstance(files, dict) and set(files) == EXPECTED_RC_FILES,
-            "ND-7 nie zawiera dokładnego 7-plikowego scope'u.")
+            "Runtime candidate nie zawiera dokładnego 7-plikowego scope'u.")
     require(isinstance(clean, dict) and set(clean) == EXPECTED_RC_FILES,
-            "ND-7 nie zawiera dokładnej tożsamości czystego klienta.")
+            "Runtime candidate nie zawiera dokładnej tożsamości czystego klienta.")
     for relative in EXPECTED_RC_FILES:
         _require_identity(files[relative], f"patched {relative}")
         _require_identity(clean[relative], f"clean {relative}")
 
+    rollback = release.get("rollback", {})
+    require(rollback.get("required") is True
+            and rollback.get("catalog_install_order") == "last"
+            and rollback.get("catalog_restore_order") == "first",
+            "Runtime candidate nie ma kompletnego kontraktu rollbacku.")
+    components = release.get("components")
+    require(isinstance(components, dict) and set(components) == {
+        "database", "dialogue-base", "dialogue-dlc", "font-runtime"
+    }, "Runtime candidate ma nieprawidłowy inventory komponentów.")
+    database = components["database"]
+    base_dialogue = components["dialogue-base"]
+    dlc_dialogue = components["dialogue-dlc"]
+    font_runtime = components["font-runtime"]
     require(database.get("selected_fields") == 5712,
-            "BGDatabase ND-7 nie zawiera dokładnie 5712 pól.")
+            "BGDatabase nie zawiera dokładnie 5712 pól.")
     require(database.get("selected_fields")
             == database.get("changed_fields") + database.get("identical_fields"),
             "selected_fields != changed_fields + identical_fields.")
@@ -198,71 +237,63 @@ def validate_nd7_release(
             and strip_sha(db_deterministic.get("second_build_sha256", ""))
                 == strip_sha(output_db.get("sha256", "")),
             "Baza nie ma dowodu deterministycznego rebuildu.")
-    require(inventory.get("outcome") == "passed"
-            and inventory.get("errors") == []
-            and inventory.get("selected_fields") == 5712
-            and inventory.get("placeholder_rows") == []
-            and inventory.get("review_required_rows") == 0,
-            "Inventory BGDatabase nie przeszedł fail-closed audytu.")
-    require(inventory.get("per_table_counts") == database.get("per_table_counts"),
-            "Inventory i manifest bazy mają różne liczniki per_table.")
-
-    conversations = base_dialogue.get("conversations")
-    require(base_dialogue.get("patch_id") == "ef001-dialogue-165-195-v4"
-            and conversations == list(range(165, 196))
-            and base_dialogue.get("changed_fields") == 2447
+    require(base_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
+            and base_dialogue.get("accepted_fields") == 15292
             and base_dialogue.get("unintended_logical_changes") == 0,
-            "Bazowy komponent dialogowy ND-7 nie przeszedł bramki.")
-    require(dlc_dialogue.get("patch_id") == "ef001-dlc-dialogue-actor-labels-v1"
-            and dlc_dialogue.get("changed_fields") == 366
+            "Bazowy pełny komponent dialogowy nie przeszedł bramki.")
+    require(dlc_dialogue.get("schema") == "echoforge.runtime-dialogue-component/v1"
+            and dlc_dialogue.get("accepted_fields") == 2554
             and dlc_dialogue.get("unintended_logical_changes") == 0,
-            "Komponent dialogów DLC ND-7 nie przeszedł bramki.")
+            "Pełny komponent dialogów DLC nie przeszedł bramki.")
     require(font_runtime.get("patch_id") == "ef001-font-polish-v1"
             and len(font_runtime.get("payloads", [])) == 4,
-            "Manifest polskich fontów ND-7 jest nieprawidłowy.")
+            "Manifest istniejącej warstwy polskich fontów jest nieprawidłowy.")
 
 
 def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
     require(re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.-]{0,39}", args.version) is not None,
             "Nieprawidłowa wersja.")
     echoforge = args.echoforge_root.resolve()
-    checkpoint = require_clean_checkpoint(echoforge)
+    checkpoint = require_clean_checkpoint(echoforge, repository="EchoForge")
+    public_checkpoint = require_clean_checkpoint(ROOT.parent, repository="chained-echoes-pl")
     baseline = load_json(ROOT / "release-baseline.json")
     require(baseline.get("schema") == "echoforge.chained-echoes-installer-baseline/v1",
             "Nieobsługiwany release-baseline.json.")
 
-    rc_dir = echoforge / ND7_PATCH_DIR
-    rc_manifest_path = rc_dir / "manifest.json"
-    component_dir = rc_dir / "component-manifests"
-    db_manifest_path = component_dir / "database.json"
-    base_dialogue_path = component_dir / "base-dialogue.json"
-    dlc_dialogue_path = component_dir / "dlc-dialogue.json"
-    font_manifest_path = component_dir / "font-runtime.json"
-    db_inventory_path = echoforge / DATABASE_INVENTORY
+    require(not args.runtime_manifest.is_symlink(),
+            "--runtime-manifest nie może być dowiązaniem symbolicznym.")
+    rc_manifest_path = args.runtime_manifest.resolve()
+    require(rc_manifest_path.is_file(), f"Brak runtime manifestu: {rc_manifest_path}.")
+    require(rc_manifest_path.name == "manifest.json",
+            "--runtime-manifest musi wskazywać dokładny manifest.json runtime candidate.")
+    rc_dir = rc_manifest_path.parent
+    require(rc_dir.parent == echoforge / "var/runtime-patches",
+            "Runtime manifest musi pochodzić z EchoForge/var/runtime-patches/<runtime_id>.")
     rc = load_json(rc_manifest_path)
-    db = load_json(db_manifest_path)
-    base_dialogue = load_json(base_dialogue_path)
-    dlc_dialogue = load_json(dlc_dialogue_path)
-    font_runtime = load_json(font_manifest_path)
-    inventory = load_json(db_inventory_path)
-    validate_nd7_release(rc, db, base_dialogue, dlc_dialogue, font_runtime, inventory)
+    require(rc_dir.name == rc.get("runtime_id"),
+            "Nazwa katalogu runtime candidate różni się od runtime_id.")
+    validate_runtime_release(rc, version=args.version, echoforge_commit=checkpoint)
+    db = rc["components"]["database"]
+    base_dialogue = rc["components"]["dialogue-base"]
+    dlc_dialogue = rc["components"]["dialogue-dlc"]
 
     selected = db["selected_fields"]
     changed = db["changed_fields"]
     identical = db["identical_fields"]
+    reset_generated_directory(PAYLOAD_DIR)
+    reset_generated_directory(EVIDENCE_DIR)
     files_by_name = {
         entry["payload_name"]: dict(entry)
         for entry in [*baseline.get("static_files", []), *baseline.get("dynamic_files", {}).values()]
     }
     require(len(files_by_name) == 7, "Baseline musi opisywać dokładnie siedem payloadów.")
-    PAYLOAD_DIR.mkdir(parents=True, exist_ok=True)
     files: list[dict[str, Any]] = []
     for relative in sorted(EXPECTED_RC_FILES):
         payload_name = Path(relative).name
         require(payload_name in files_by_name, f"Baseline nie zna payloadu: {payload_name}.")
         baseline_entry = files_by_name[payload_name]
         require(baseline_entry["target_paths"]["linux"] == relative,
-                f"Ścieżka ND-7 nie odpowiada baseline: {relative}.")
+                f"Ścieżka runtime candidate nie odpowiada baseline: {relative}.")
         source_identity = _require_identity(rc["clean_client"]["files"][relative], relative)
         output_identity = _require_identity(rc["files"][relative], relative)
         payload_path = rc_dir / relative
@@ -289,14 +320,7 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
         copy_file(payload_path, PAYLOAD_DIR / payload_name)
         files.append(current)
 
-    evidence_sources = [
-        (db_inventory_path, EVIDENCE_DIR / "database-inventory.json"),
-        (db_manifest_path, EVIDENCE_DIR / "database-manifest.json"),
-        (base_dialogue_path, EVIDENCE_DIR / "base-dialogue-manifest.json"),
-        (dlc_dialogue_path, EVIDENCE_DIR / "dlc-dialogue-manifest.json"),
-        (font_manifest_path, EVIDENCE_DIR / "font-manifest.json"),
-        (rc_manifest_path, EVIDENCE_DIR / "nd7-release-candidate-manifest.json"),
-    ]
+    evidence_sources = [(rc_manifest_path, EVIDENCE_DIR / "runtime-release-manifest.json")]
     for source, target in evidence_sources:
         require(source.is_file(), f"Brak evidence: {source}")
         copy_file(source, target)
@@ -312,15 +336,24 @@ def prepare_release(args: argparse.Namespace) -> dict[str, Any]:
         "status": "windows-kubuntu-release-candidate",
         "game": baseline["game"],
         "source_checkpoint": {
-            "repository": "EchoForge",
-            "commit": checkpoint,
-            "database_inventory_sha256": sha256(EVIDENCE_DIR / "database-inventory.json"),
-            "database_manifest_sha256": sha256(EVIDENCE_DIR / "database-manifest.json"),
+            "echoforge": {
+                "repository": "EchoForge",
+                "ref": "refs/heads/main",
+                "commit": checkpoint,
+                "runtime_id": rc["runtime_id"],
+                "runtime_manifest_sha256": sha256(EVIDENCE_DIR / "runtime-release-manifest.json"),
+                "acceptance_manifest_sha256": strip_sha(rc["acceptance"]["sha256"]),
+            },
+            "release_repository": {
+                "repository": "chained-echoes-pl",
+                "ref": "refs/heads/main",
+                "commit": public_checkpoint,
+            },
         },
         "evidence_files": evidence,
         "translation_scope": {
-            "dialogue_fields": base_dialogue["changed_fields"] + dlc_dialogue["changed_fields"],
-            "dialogue_conversations": "165-195 + etykiety aktorów DLC",
+            "dialogue_fields": rc["acceptance"]["accepted_fields"],
+            "dialogue_conversations": "pełny canonical EF-001R (1807 checkpointów)",
             "database_selected_fields": selected,
             "database_changed_fields": changed,
             "database_identical_fields": identical,
@@ -440,35 +473,95 @@ Nie uruchamia gry. Po instalacji wykonaj checklistę smoke testu z repozytorium.
     return path
 
 
-def publish(args: argparse.Namespace, notes: Path, archives: list[Path]) -> None:
+def validate_publish_identity(
+    manifest: dict[str, Any], *, head: str, branch: str, origin_main: str
+) -> str:
+    source = manifest.get("source_checkpoint", {}).get("release_repository", {})
+    expected = source.get("commit")
+    require(source.get("ref") == "refs/heads/main",
+            "Zbudowany manifest nie wskazuje canonical chained-echoes-pl/main.")
+    require(isinstance(expected, str) and re.fullmatch(r"[0-9a-f]{40}", expected) is not None,
+            "Zbudowany manifest nie zawiera exact public source SHA.")
+    require(branch == "main", "Publikacja wymaga canonical chained-echoes-pl/main.")
+    require(head == expected, "HEAD różni się od SHA użytego do budowy instalatorów.")
+    require(origin_main == expected, "origin/main różni się od SHA użytego do budowy instalatorów.")
+    return expected
+
+
+def _optional(command: list[str], *, cwd: Path = ROOT.parent) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+
+
+def _remote_tag_target(tag: str) -> str | None:
+    output = run(
+        ["git", "ls-remote", "--tags", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"],
+        cwd=ROOT.parent,
+        capture=True,
+    )
+    rows = [line.split() for line in output.splitlines() if line.strip()]
+    peeled = [sha for sha, ref in rows if ref == f"refs/tags/{tag}^{{}}"]
+    direct = [sha for sha, ref in rows if ref == f"refs/tags/{tag}"]
+    targets = peeled or direct
+    require(len(targets) <= 1, f"Remote tag {tag} ma niejednoznaczny target.")
+    return targets[0] if targets else None
+
+
+def ensure_exact_remote_tag(tag: str, source_sha: str) -> None:
+    remote_target = _remote_tag_target(tag)
+    require(remote_target in {None, source_sha},
+            f"Istniejący remote tag {tag} wskazuje inne SHA; tag nie zostanie zmieniony.")
+    local = _optional(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}"])
+    if local.returncode != 0 and remote_target is not None:
+        run(["git", "fetch", "origin", f"refs/tags/{tag}:refs/tags/{tag}"], cwd=ROOT.parent)
+        local = _optional(["git", "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}"])
+    if local.returncode == 0:
+        require(local.stdout.strip() == source_sha,
+                f"Istniejący lokalny tag {tag} wskazuje inne SHA; tag nie zostanie zmieniony.")
+    else:
+        require(remote_target is None, f"Nie można potwierdzić targetu tagu {tag}.")
+        run(["git", "tag", "-a", tag, source_sha, "-m", f"Chained Echoes PL {tag}"],
+            cwd=ROOT.parent)
+    if remote_target is None:
+        run(["git", "push", "origin", f"refs/tags/{tag}:refs/tags/{tag}"], cwd=ROOT.parent)
+    require(_remote_tag_target(tag) == source_sha,
+            f"Remote tag {tag} nie wskazuje exact release source SHA po pushu.")
+
+
+def publish(
+    args: argparse.Namespace,
+    manifest: dict[str, Any],
+    notes: Path,
+    archives: list[Path],
+) -> None:
     tag = f"v{args.version}"
+    status = run(["git", "status", "--porcelain"], cwd=ROOT.parent, capture=True)
+    require(not status, "Publiczne repo ma niezacommitowane zmiany; publikacja zatrzymana.")
+    branch = run(["git", "symbolic-ref", "--short", "HEAD"], cwd=ROOT.parent, capture=True)
+    head = run(["git", "rev-parse", "HEAD"], cwd=ROOT.parent, capture=True)
+    run(["git", "fetch", "origin", "main", "--tags"], cwd=ROOT.parent)
+    origin_main = run(["git", "rev-parse", "refs/remotes/origin/main"], cwd=ROOT.parent, capture=True)
+    source_sha = validate_publish_identity(
+        manifest, head=head, branch=branch, origin_main=origin_main
+    )
+    remote_url = run(["git", "remote", "get-url", "origin"], cwd=ROOT.parent, capture=True)
+    require(args.repo in remote_url or remote_url.endswith(args.repo + ".git"),
+            "--repo nie odpowiada origin publicznego repozytorium.")
+    existing_release = _optional(["gh", "release", "view", tag, "--repo", args.repo])
+    require(existing_release.returncode != 0,
+            f"GitHub release {tag} już istnieje; publikacja nie zmieni istniejącego release'u.")
+    ensure_exact_remote_tag(tag, source_sha)
     assets: list[str] = []
     for archive in archives:
         assets.extend([str(archive), str(archive.with_suffix(archive.suffix + ".sha256"))])
     run(["gh", "release", "create", tag, "--repo", args.repo, "--prerelease",
+         "--verify-tag", "--target", source_sha,
          "--title", f"Chained Echoes PL {args.version}", "--notes-file", str(notes), *assets])
-
-
-def retag_staged_manifest(manifest: dict[str, Any], version: str) -> dict[str, Any]:
-    """Retag a previously verified payload set without changing its content scope."""
-    changed = dict(manifest)
-    changed["version"] = version
-    changed["release_id"] = f"chained-echoes-polish-ef001-{version}"
-    changed["status"] = "windows-kubuntu-release-candidate"
-    PAYLOAD_DIR.joinpath("release-manifest.json").write_text(
-        json.dumps(changed, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return changed
 
 
 def main() -> int:
     args = parse_args()
     try:
-        if args.skip_prepare:
-            manifest = load_json(PAYLOAD_DIR / "release-manifest.json")
-            if manifest.get("version") != args.version:
-                manifest = retag_staged_manifest(manifest, args.version)
-        else:
-            manifest = prepare_release(args)
+        manifest = prepare_release(args)
         first = build_packages(args.version)
         first_hashes = {path.name: sha256(path) for path in first}
         if not args.no_determinism_check:
@@ -484,7 +577,9 @@ def main() -> int:
         for archive in archives:
             print(f"Gotowe: {archive} ({sha256(archive)})")
         if args.publish:
-            publish(args, notes, archives)
+            require(not args.no_determinism_check,
+                    "Publikacja jest zabroniona po --no-determinism-check.")
+            publish(args, manifest, notes, archives)
             print(f"Opublikowano prerelease v{args.version} w {args.repo}")
         return 0
     except (ReleaseError, KeyError, TypeError, subprocess.CalledProcessError) as error:
