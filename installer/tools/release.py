@@ -150,9 +150,11 @@ def require_clean_checkpoint(root: Path, *, repository: str) -> str:
         f"To nie jest worktree Git: {root}")
     status = run(["git", "status", "--porcelain"], cwd=root, capture=True)
     require(not status, f"{repository} ma niezacommitowane zmiany; wydanie zostało zatrzymane.")
-    branch = run(["git", "symbolic-ref", "--short", "HEAD"], cwd=root, capture=True)
-    require(branch == "main", f"{repository} release source musi być canonical main.")
-    return run(["git", "rev-parse", "HEAD"], cwd=root, capture=True)
+    head = run(["git", "rev-parse", "HEAD"], cwd=root, capture=True)
+    main_head = run(["git", "rev-parse", "refs/heads/main"], cwd=root, capture=True)
+    require(head == main_head,
+            f"{repository} release source musi być dokładnym commitem canonical main.")
+    return head
 
 
 def evidence_entry(path: Path) -> dict[str, Any]:

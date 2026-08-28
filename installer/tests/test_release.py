@@ -111,6 +111,31 @@ class ReleaseFactoryTests(unittest.TestCase):
             "rollback": {"required": True, "catalog_install_order": "last", "catalog_restore_order": "first"},
         }
 
+    def test_clean_checkpoint_accepts_worktree_at_exact_main_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            outputs = {
+                ("git", "status", "--porcelain"): "",
+                ("git", "rev-parse", "HEAD"): "abc123",
+                ("git", "rev-parse", "refs/heads/main"): "abc123",
+            }
+            with mock.patch.object(release, "run", side_effect=lambda command, **_: outputs[tuple(command)]):
+                self.assertEqual(release.require_clean_checkpoint(root, repository="test"), "abc123")
+
+    def test_clean_checkpoint_rejects_commit_other_than_main(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            outputs = {
+                ("git", "status", "--porcelain"): "",
+                ("git", "rev-parse", "HEAD"): "candidate",
+                ("git", "rev-parse", "refs/heads/main"): "main",
+            }
+            with mock.patch.object(release, "run", side_effect=lambda command, **_: outputs[tuple(command)]), \
+                    self.assertRaisesRegex(release.ReleaseError, "dokładnym commitem canonical main"):
+                release.require_clean_checkpoint(root, repository="test")
+
     def test_strip_sha_accepts_prefixed_and_plain_digest(self) -> None:
         digest = "a" * 64
         self.assertEqual(release.strip_sha(digest), digest)

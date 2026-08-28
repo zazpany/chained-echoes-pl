@@ -20,7 +20,7 @@ python3 tools/release.py \
 
 Generator:
 
-1. odrzuca brudny lub niekanoniczny `EchoForge/main` i `chained-echoes-pl/main`;
+1. odrzuca brudny checkout lub commit różny od dokładnego bieżącego `main` w EchoForge i `chained-echoes-pl`; build może działać w kontrolowanym worktree na exact-main, ale publikacja nadal wymaga canonical `main`;
 2. wymaga, aby runtime manifest wskazywał dokładny bieżący commit EchoForge;
 3. wymaga kompletnego acceptance `1807 / 17846 / 0`, sprawdza dowody
    dopasowania źródeł, strukturę bazy, pola poza zakresem i byte-identical rebuild;
