@@ -196,8 +196,8 @@ def validate_runtime_release(
     require(runtime_acceptance.get("required") is True
             and runtime_acceptance.get("status") == "pending_manual_smoke"
             and runtime_acceptance.get("platforms") == {
-                "linux": "user-confirmed-pass", "windows": "pending"},
-            "Runtime candidate nie zachowuje Linux PASS i Windows PENDING.")
+                "linux": "pending", "windows": "pending"},
+            "Runtime candidate nie zachowuje obu platform jako PENDING przed smoke z GitHuba.")
     acceptance = release.get("acceptance", {})
     dialogue_source = acceptance.get("dialogue_source", {})
     require(acceptance.get("accepted_checkpoints") == 1807
@@ -560,7 +560,9 @@ Paczki:
 {asset_lines}
 
 Instalator wymaga czystego Steam build `{manifest['game']['steam_build_id']}`.
-Nie uruchamia gry. Po instalacji wykonaj checklistę smoke testu z repozytorium.
+Nie uruchamia gry. Smoke wykonuj dopiero po publikacji prerelease, wyłącznie na
+ZIP-ach pobranych ponownie z GitHub Releases; lokalnego `dist/` nie traktuj jako
+artefaktu smoke. Po instalacji wykonaj checklistę smoke testu z repozytorium.
 """
     path = DIST_DIR / f"release-notes-{manifest['version']}.md"
     path.write_text(notes, encoding="utf-8")

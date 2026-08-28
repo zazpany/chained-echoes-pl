@@ -53,11 +53,13 @@ Przed publikacją:
 5. sprawdź, że exact source SHA jest już na `origin/main`;
 6. nie commituj payloadów, plików gry, evidence ani `dist/`.
 
-Wydanie pozostaje pre-release do czasu ręcznych testów:
+Wydanie pozostaje pre-release do czasu ręcznych testów. Oba smoke testy
+zaczynamy dopiero po publikacji GitHub prerelease i wykonujemy wyłącznie na
+ZIP-ach pobranych ponownie z GitHub Releases (nie na lokalnym `installer/dist/`):
 
 - Windows: install → verify → uruchomienie gry → uninstall → czysty klient;
 - Kubuntu: install → verify → uruchomienie gry → uninstall → czysty klient;
-- ponowna instalacja tego samego RC i finalny smoke test rozgrywki.
+- ponowna instalacja tego samego pobranego RC i finalny smoke test rozgrywki.
 
 Po potwierdzeniu obu platform promuj istniejący release bez przebudowy,
 zmiany taga lub podmiany assets:
@@ -70,8 +72,7 @@ gh release edit vVERSION \
 
 Po operacji odczytaj release ponownie i potwierdź `prerelease=false`, exact
 target taga oraz niezmienione nazwy i rozmiary wszystkich assets. Status stable
-dotyczy bramki technicznej; dopóki projekt nie przejdzie osobnego pełnego QA
-językowego i redakcji, notatki wydania i README muszą jasno zachowywać status
-**pełne tłumaczenie przed QA i redakcją**.
+dotyczy bramki technicznej; notatki wydania i README muszą zawsze jasno opisywać
+rzeczywisty stan QA językowego i redakcji dla publikowanej wersji.
 
 Gotowe ZIP-y i EXE/ELF są assets GitHub Releases, nigdy historią Git.

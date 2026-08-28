@@ -83,7 +83,7 @@ class ReleaseFactoryTests(unittest.TestCase):
             "runtime_acceptance": {
                 "required": True,
                 "status": "pending_manual_smoke",
-                "platforms": {"linux": "user-confirmed-pass", "windows": "pending"},
+                "platforms": {"linux": "pending", "windows": "pending"},
             },
             "acceptance": {
                 "accepted_checkpoints": 1807,
